@@ -5,6 +5,7 @@ import {
   createRootRoute,
   useParams,
 } from '@tanstack/react-router'
+import { ContentHotReload } from '@/components/content-hot-reload'
 import { RootProvider } from 'fumadocs-ui/provider/tanstack'
 import { i18nUI } from '@/lib/layout.shared'
 import fumadocsStyles from 'fumadocs-ui/style.css?url'
@@ -44,6 +45,7 @@ function RootDocument() {
             },
           }}
         >
+          <ContentHotReload />
           <Outlet />
         </RootProvider>
         <Scripts />

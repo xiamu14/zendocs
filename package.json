@@ -17,6 +17,7 @@
     "@tanstack/react-router-devtools": "latest",
     "@tanstack/react-start": "latest",
     "@vitejs/plugin-react": "^5.1.1",
+    "chokidar": "^3.6.0",
     "fumadocs-core": "latest",
     "fumadocs-ui": "latest",
     "marked": "latest",
