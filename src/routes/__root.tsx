@@ -7,12 +7,10 @@ import {
 } from '@tanstack/react-router'
 import { RootProvider } from 'fumadocs-ui/provider/tanstack'
 import { i18nUI } from '@/lib/layout.shared'
-import { getWorkspaceSearchFilters } from '@/lib/workspace-markdown'
 import fumadocsStyles from 'fumadocs-ui/style.css?url'
 import fumadocsOverrides from '@/styles/fumadocs-overrides.css?url'
 
 export const Route = createRootRoute({
-  loader: () => getWorkspaceSearchFilters(),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -30,7 +28,6 @@ export const Route = createRootRoute({
 
 function RootDocument() {
   const { lang } = useParams({ strict: false })
-  const filters = Route.useLoaderData()
 
   return (
     <html lang={lang ?? 'zh'} suppressHydrationWarning>
@@ -44,14 +41,6 @@ function RootDocument() {
             preload: false,
             options: {
               api: '/api/search',
-              defaultTag: '',
-              tags: [
-                { name: 'All', value: '' },
-                ...filters.map((filter) => ({
-                  name: filter,
-                  value: filter,
-                })),
-              ],
             },
           }}
         >
