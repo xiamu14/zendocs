@@ -1,0 +1,35 @@
+{
+  "name": "zendocs",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force",
+    "dev:app": "vite --host 127.0.0.1 --port ${PORT:-3140}",
+    "build": "vite build",
+    "start": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force"
+  },
+  "portless": {
+    "name": "zendocs",
+    "script": "dev:app"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-router-devtools": "latest",
+    "@tanstack/react-start": "latest",
+    "@vitejs/plugin-react": "^5.1.1",
+    "fumadocs-core": "latest",
+    "fumadocs-ui": "latest",
+    "marked": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "portless": "^0.13.0",
+    "typescript": "latest"
+  }
+}
