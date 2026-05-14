@@ -90,7 +90,8 @@
   > button:first-child
   + div
   > button {
-  min-width: 86px;
+  /*min-width: 86px;*/
+  gap: 4px;
   justify-content: space-around;
   border: 1px solid var(--color-fd-border);
   border-inline-start: 0;
