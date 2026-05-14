@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { spawn } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import GithubSlugger from "github-slugger";
@@ -13,6 +14,7 @@ type MarkedTokenLike = {
   type?: string;
   raw?: string;
   text?: string;
+  depth?: number;
   lang?: string;
   tokens?: MarkedTokenLike[];
   items?: Array<{ tokens?: MarkedTokenLike[] }>;
@@ -25,6 +27,7 @@ export type WorkspaceMarkdownPage = {
   path: string;
   name: string;
   title: string;
+  headingTitle: string;
   url: string;
   lastUpdate: string;
   content: string;
@@ -38,6 +41,15 @@ export type WorkspaceNavigation = {
   pages: Array<Pick<WorkspaceMarkdownPage, "path" | "name" | "title" | "url">>;
   firstUrl: string | null;
 };
+
+export type OpenWorkspaceMarkdownInEditorResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 export type WorkspaceTocItem = {
   title: string;
@@ -144,6 +156,30 @@ function pageBreadcrumbs(relativePath: string) {
   if (directory === ".") return [];
 
   return directory.split(path.sep).filter(Boolean);
+}
+
+function isPathInsideWorkspace(absolutePath: string) {
+  const relativePath = path.relative(path.resolve(workspaceRoot), absolutePath);
+
+  return (
+    Boolean(relativePath) &&
+    !relativePath.startsWith("..") &&
+    !path.isAbsolute(relativePath)
+  );
+}
+
+function buildEditorArgs(args: string[] | undefined, absolutePath: string) {
+  if (!args || args.length === 0) return [absolutePath];
+
+  let usedFilePlaceholder = false;
+  const editorArgs = args.map((arg) => {
+    if (!arg.includes("{file}")) return arg;
+
+    usedFilePlaceholder = true;
+    return arg.replaceAll("{file}", absolutePath);
+  });
+
+  return usedFilePlaceholder ? editorArgs : [...editorArgs, absolutePath];
 }
 
 async function walkMarkdownFiles(
@@ -640,9 +676,15 @@ async function renderMarkdown(content: string) {
     import("marked"),
     Promise.resolve(getTableOfContents(content)),
   ]);
-  const tokens = marked.lexer(content);
+  const tokens = marked.lexer(content) as MarkedTokenLike[];
+  const firstToken = tokens[0];
+  const headingTitle =
+    firstToken?.type === "heading" && firstToken.depth === 1
+      ? tokenText(firstToken.tokens) || firstToken.text || ""
+      : "";
+  const bodyTokens = headingTitle ? tokens.slice(1) : tokens;
   const highlightedBlocks = new Map<string, string>();
-  const codeTokens = collectCodeTokens(tokens);
+  const codeTokens = collectCodeTokens(bodyTokens);
 
   await Promise.all(
     codeTokens.map(async (token) => {
@@ -673,7 +715,8 @@ async function renderMarkdown(content: string) {
   };
 
   return {
-    html: marked.parser(tokens, { renderer }),
+    headingTitle,
+    html: marked.parser(bodyTokens, { renderer }),
     toc: toc.map((item) => ({
       title: String(item.title),
       url: item.url,
@@ -701,6 +744,59 @@ export const getWorkspaceNavigation = createServerFn({ method: "GET" })
     };
   });
 
+export const openWorkspaceMarkdownInEditor = createServerFn({ method: "POST" })
+  .inputValidator((data: { pagePath: string }) => data)
+  .handler(async ({ data }): Promise<OpenWorkspaceMarkdownInEditorResult> => {
+    const editor = config.editor;
+
+    if (!editor) {
+      return {
+        ok: false,
+        message: "Editor is not configured.",
+      };
+    }
+
+    const normalizedPath = decodeURIComponent(data.pagePath);
+    const files = await getMarkdownPaths();
+    const relativePath = files.find((file) => file === normalizedPath);
+
+    if (!relativePath) {
+      return {
+        ok: false,
+        message: "File is not available in this workspace.",
+      };
+    }
+
+    const absolutePath = path.resolve(workspaceRoot, relativePath);
+
+    if (!isPathInsideWorkspace(absolutePath)) {
+      return {
+        ok: false,
+        message: "File is outside the configured workspace.",
+      };
+    }
+
+    try {
+      const child = spawn(
+        editor.command,
+        buildEditorArgs(editor.args, absolutePath),
+        {
+          detached: true,
+          stdio: "ignore",
+        },
+      );
+
+      child.unref();
+
+      return { ok: true };
+    } catch {
+      return {
+        ok: false,
+        message: "Could not open the configured editor.",
+      };
+    }
+  });
+
 export const getWorkspaceMarkdownPage = createServerFn({ method: "GET" })
   .inputValidator((data: { lang: string; pagePath: string }) => data)
   .handler(async ({ data }): Promise<WorkspaceMarkdownPage | null> => {
@@ -715,12 +811,13 @@ export const getWorkspaceMarkdownPage = createServerFn({ method: "GET" })
       readFile(absolutePath, "utf8"),
       stat(absolutePath),
     ]);
-    const { html, toc } = await renderMarkdown(content);
+    const { headingTitle, html, toc } = await renderMarkdown(content);
 
     return {
       path: relativePath,
       name: path.basename(relativePath),
       title: pageTitle(relativePath),
+      headingTitle: headingTitle || pageTitle(relativePath),
       url: pageUrl(data.lang, relativePath),
       lastUpdate: fileInfo.mtime.toISOString(),
       content,
