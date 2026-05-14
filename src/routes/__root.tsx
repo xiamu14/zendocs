@@ -41,6 +41,7 @@ function RootDocument() {
         <RootProvider
           i18n={i18nUI.provider(lang)}
           search={{
+            preload: false,
             options: {
               api: '/api/search',
               defaultTag: '',

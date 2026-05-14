@@ -14,27 +14,35 @@
   color: oklch(55% 0.15 64) !important;
 }
 
-#nd-sidebar [class*="flex-col"][class*="p-4"][class*="pt-2"]:has(
-    > button:first-child
-  ) {
+#nd-sidebar
+  [class*="flex-col"][class*="p-4"][class*="pt-2"]:has(> button:first-child) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0;
   align-items: stretch;
 }
 
-#nd-sidebar [class*="flex-col"][class*="p-4"][class*="pt-2"] > button:first-child {
+#nd-sidebar
+  [class*="flex-col"][class*="p-4"][class*="pt-2"]
+  > button:first-child {
   min-width: 0;
   margin-bottom: 0 !important;
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
-#nd-sidebar [class*="flex-col"][class*="p-4"][class*="pt-2"] > button:first-child + div {
+#nd-sidebar
+  [class*="flex-col"][class*="p-4"][class*="pt-2"]
+  > button:first-child
+  + div {
   display: contents;
 }
 
-#nd-sidebar [class*="flex-col"][class*="p-4"][class*="pt-2"] > button:first-child + div > button {
+#nd-sidebar
+  [class*="flex-col"][class*="p-4"][class*="pt-2"]
+  > button:first-child
+  + div
+  > button {
   min-width: 86px;
   justify-content: space-around;
   border: 1px solid var(--color-fd-border);
@@ -45,13 +53,17 @@
   background: color-mix(in oklab, var(--color-fd-secondary) 50%, transparent);
 }
 
-#nd-sidebar [class*="flex-col"][class*="p-4"][class*="pt-2"] > button:first-child + div {
+#nd-sidebar
+  [class*="flex-col"][class*="p-4"][class*="pt-2"]
+  > button:first-child
+  + div {
   border-inline-start: 0;
   border-start-start-radius: 0;
   border-end-start-radius: 0;
 }
 
-.prose :where(a:not([data-card])):not(
+.prose
+  :where(a:not([data-card])):not(
     :where([class~="not-prose"], [class~="not-prose"] *)
   ) {
   color: var(--color-fd-foreground);
@@ -62,7 +74,8 @@
   text-underline-offset: 4px;
 }
 
-.prose :where(a:not([data-card]):hover, a:not([data-card]):focus-visible):not(
+.prose
+  :where(a:not([data-card]):hover, a:not([data-card]):focus-visible):not(
     :where([class~="not-prose"], [class~="not-prose"] *)
   ) {
   color: oklch(58% 0.14 65);
@@ -76,20 +89,23 @@
   color: var(--color-fd-foreground);
 }
 
-.prose :where(li:has(> input[type="checkbox"])):not(
+.prose
+  :where(li:has(> input[type="checkbox"])):not(
     :where([class~="not-prose"], [class~="not-prose"] *)
   ) {
   list-style: none;
   padding-inline-start: 0;
 }
 
-.prose :where(li:has(> input[type="checkbox"])):not(
+.prose
+  :where(li:has(> input[type="checkbox"])):not(
     :where([class~="not-prose"], [class~="not-prose"] *)
   )::marker {
   content: "";
 }
 
-.prose :where(li > input[type="checkbox"]:first-child):not(
+.prose
+  :where(li > input[type="checkbox"]:first-child):not(
     :where([class~="not-prose"], [class~="not-prose"] *)
   ) {
   margin-inline-end: 0.625rem;
@@ -107,22 +123,17 @@
 
 #nd-toc .stroke-fd-primary {
   stroke: oklch(61% 0.17 68) !important;
+  stroke-width: 2px !important;
 }
 
 #nd-toc .fill-fd-primary {
   fill: oklch(61% 0.17 68) !important;
 }
 
-#nd-toc .bg-fd-primary {
+#nd-toc .bg-fd-primary:not(.absolute) {
   background-color: oklch(61% 0.17 68) !important;
 }
 
-#nd-toc div.bg-fd-primary {
-  display: block !important;
-  width: 6px !important;
-  height: 6px !important;
-  border-radius: 1px !important;
-  opacity: 1 !important;
-  transform: rotate(45deg);
-  transform-origin: center;
+#nd-toc div.absolute.bg-fd-primary {
+  display: none !important;
 }

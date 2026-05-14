@@ -525,6 +525,10 @@ async function renderCodeBlock(code: string, info?: string) {
       await highlightHast(code, {
         lang: language as never,
         fallbackLanguage: 'txt' as never,
+        themes: {
+          light: 'catppuccin-latte',
+          dark: 'catppuccin-mocha',
+        },
         defaultColor: false,
       }),
     )

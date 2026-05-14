@@ -137,8 +137,6 @@ filterDirectories: [
 maxFileSizeBytes: 1024 * 1024
 ```
 
-
-
 ## 示例配置
 
 可以参考 `config.example.ts`。它展示了字符串、正则和 glob 三种过滤方式的写法。
