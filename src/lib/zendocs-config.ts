@@ -18,6 +18,7 @@ export type ZendocsMatchRule =
 export type ZendocsEditorConfig = {
   command: string;
   args?: string[];
+  url?: string;
 };
 
 export type ZendocsConfig = {

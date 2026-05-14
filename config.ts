@@ -5,6 +5,7 @@ const config = {
   editor: {
     command: "open",
     args: ["-a", "Zed"],
+    url: "zed://file/{file}",
   },
   filterFiles: [
     /^(readme(?:[._-].*)?|licen[cs]e|licence|changelog|contribut(?:ion|ing)|thanks)(?:[._-].*)?$/i,

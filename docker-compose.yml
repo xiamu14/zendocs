@@ -1,0 +1,13 @@
+services:
+  zendocs:
+    build:
+      context: .
+    container_name: zendocs
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${ZENDOCS_PORT:-1356}:3000"
+    volumes:
+      - "/Users/ben/Documents/workspace:/Users/ben/Documents/workspace:ro"
+    restart: unless-stopped

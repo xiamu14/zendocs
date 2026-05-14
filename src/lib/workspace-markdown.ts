@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import GithubSlugger from "github-slugger";
@@ -33,6 +34,8 @@ export type WorkspaceMarkdownPage = {
   content: string;
   html: string;
   toc: WorkspaceTocItem[];
+  canOpenInEditor: boolean;
+  editorUrl: string | null;
 };
 
 export type WorkspaceNavigation = {
@@ -109,6 +112,26 @@ type WorkspaceSearchCache = {
 
 const searchCacheTtlMs = 2000;
 let workspaceSearchCache: WorkspaceSearchCache | null = null;
+
+function isRunningInDocker() {
+  return existsSync("/.dockerenv");
+}
+
+function canOpenWorkspaceMarkdownInEditor() {
+  return Boolean(config.editor) && (!isRunningInDocker() || Boolean(config.editor.url));
+}
+
+function buildEditorUrl(absolutePath: string) {
+  const editor = config.editor;
+  if (!editor || !editor.url) return null;
+
+  const encodedPath = absolutePath
+    .split(path.sep)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  return editor.url.replaceAll("{file}", encodedPath);
+}
 
 function shouldSkipFile(fileName: string, relativePath: string) {
   if (!fileName.toLowerCase().endsWith(".md")) return true;
@@ -749,6 +772,13 @@ export const openWorkspaceMarkdownInEditor = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<OpenWorkspaceMarkdownInEditorResult> => {
     const editor = config.editor;
 
+    if (isRunningInDocker()) {
+      return {
+        ok: false,
+        message: "Editor is not available in Docker.",
+      };
+    }
+
     if (!editor) {
       return {
         ok: false,
@@ -823,5 +853,7 @@ export const getWorkspaceMarkdownPage = createServerFn({ method: "GET" })
       content,
       html,
       toc,
+      canOpenInEditor: canOpenWorkspaceMarkdownInEditor(),
+      editorUrl: buildEditorUrl(absolutePath),
     };
   });

@@ -1,4 +1,6 @@
 import chokidar from 'chokidar'
+import { existsSync } from 'node:fs'
+import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import config from '../../config'
 import { matchesAnyRule } from './zendocs-config'
@@ -14,6 +16,11 @@ type ContentEventListener = (event: ContentEvent) => void
 
 const listeners = new Set<ContentEventListener>()
 let watcherStarted = false
+let contentSignature: string | null = null
+
+function isRunningInDocker() {
+  return existsSync('/.dockerenv')
+}
 
 function shouldSkipContentEvent(absolutePath: string) {
   const workspaceRoot = path.resolve(config.readDirectory)
@@ -57,6 +64,43 @@ function shouldSkipContentEvent(absolutePath: string) {
     )
 }
 
+async function collectMarkdownFileStats(
+  directory: string,
+  root: string,
+  output: string[],
+) {
+  const entries = await readdir(directory, { withFileTypes: true })
+
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (entry.name.startsWith('.') && entry.name !== '.agents') return
+
+      const absolutePath = path.join(directory, entry.name)
+      const relativePath = path.relative(root, absolutePath)
+
+      if (entry.isDirectory()) {
+        if (shouldIgnoreWatchPath(absolutePath)) return
+        await collectMarkdownFileStats(absolutePath, root, output)
+        return
+      }
+
+      if (!entry.isFile() || shouldSkipContentEvent(absolutePath)) return
+
+      const fileInfo = await stat(absolutePath)
+      output.push(`${relativePath}:${fileInfo.mtimeMs}:${fileInfo.size}`)
+    }),
+  )
+}
+
+async function createContentSignature() {
+  const workspaceRoot = path.resolve(config.readDirectory)
+  const entries: string[] = []
+
+  await collectMarkdownFileStats(workspaceRoot, workspaceRoot, entries)
+
+  return entries.sort((a, b) => a.localeCompare(b)).join('|')
+}
+
 function shouldIgnoreWatchPath(filePath: string) {
   const workspaceRoot = path.resolve(config.readDirectory)
   const absolutePath = path.isAbsolute(filePath)
@@ -92,10 +136,13 @@ function startContentWatcher() {
   watcherStarted = true
 
   const workspaceRoot = path.resolve(config.readDirectory)
+  const usePolling = isRunningInDocker()
 
   const watcher = chokidar.watch(path.join(workspaceRoot, '**/*.md'), {
     ignored: shouldIgnoreWatchPath,
     ignoreInitial: true,
+    interval: 500,
+    usePolling,
   })
 
   const emit = (event: ContentEventType, filePath: string) => {
@@ -109,6 +156,8 @@ function startContentWatcher() {
       event,
       path: path.relative(workspaceRoot, absolutePath).split(path.sep).join('/'),
     }
+
+    contentSignature = null
 
     for (const listener of listeners) {
       listener(contentEvent)
@@ -127,4 +176,12 @@ export function subscribeToContentEvents(listener: ContentEventListener) {
   return () => {
     listeners.delete(listener)
   }
+}
+
+export async function getContentVersion() {
+  startContentWatcher()
+
+  contentSignature ??= await createContentSignature()
+
+  return contentSignature
 }

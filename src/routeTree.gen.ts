@@ -13,7 +13,7 @@ import { Route as LangRouteImport } from './routes/$lang'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LangIndexRouteImport } from './routes/$lang/index'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
-import { Route as ApiContentEventsRouteImport } from './routes/api/content-events'
+import { Route as ApiContentVersionRouteImport } from './routes/api/content-version'
 import { Route as LangSplatRouteImport } from './routes/$lang/$'
 
 const LangRoute = LangRouteImport.update({
@@ -36,9 +36,9 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiContentEventsRoute = ApiContentEventsRouteImport.update({
-  id: '/api/content-events',
-  path: '/api/content-events',
+const ApiContentVersionRoute = ApiContentVersionRouteImport.update({
+  id: '/api/content-version',
+  path: '/api/content-version',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LangSplatRoute = LangSplatRouteImport.update({
@@ -51,14 +51,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$lang': typeof LangRouteWithChildren
   '/$lang/$': typeof LangSplatRoute
-  '/api/content-events': typeof ApiContentEventsRoute
+  '/api/content-version': typeof ApiContentVersionRoute
   '/api/search': typeof ApiSearchRoute
   '/$lang/': typeof LangIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$lang/$': typeof LangSplatRoute
-  '/api/content-events': typeof ApiContentEventsRoute
+  '/api/content-version': typeof ApiContentVersionRoute
   '/api/search': typeof ApiSearchRoute
   '/$lang': typeof LangIndexRoute
 }
@@ -67,7 +67,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$lang': typeof LangRouteWithChildren
   '/$lang/$': typeof LangSplatRoute
-  '/api/content-events': typeof ApiContentEventsRoute
+  '/api/content-version': typeof ApiContentVersionRoute
   '/api/search': typeof ApiSearchRoute
   '/$lang/': typeof LangIndexRoute
 }
@@ -77,17 +77,17 @@ export interface FileRouteTypes {
     | '/'
     | '/$lang'
     | '/$lang/$'
-    | '/api/content-events'
+    | '/api/content-version'
     | '/api/search'
     | '/$lang/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$lang/$' | '/api/content-events' | '/api/search' | '/$lang'
+  to: '/' | '/$lang/$' | '/api/content-version' | '/api/search' | '/$lang'
   id:
     | '__root__'
     | '/'
     | '/$lang'
     | '/$lang/$'
-    | '/api/content-events'
+    | '/api/content-version'
     | '/api/search'
     | '/$lang/'
   fileRoutesById: FileRoutesById
@@ -95,7 +95,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LangRoute: typeof LangRouteWithChildren
-  ApiContentEventsRoute: typeof ApiContentEventsRoute
+  ApiContentVersionRoute: typeof ApiContentVersionRoute
   ApiSearchRoute: typeof ApiSearchRoute
 }
 
@@ -129,11 +129,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/content-events': {
-      id: '/api/content-events'
-      path: '/api/content-events'
-      fullPath: '/api/content-events'
-      preLoaderRoute: typeof ApiContentEventsRouteImport
+    '/api/content-version': {
+      id: '/api/content-version'
+      path: '/api/content-version'
+      fullPath: '/api/content-version'
+      preLoaderRoute: typeof ApiContentVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$lang/$': {
@@ -161,7 +161,7 @@ const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LangRoute: LangRouteWithChildren,
-  ApiContentEventsRoute: ApiContentEventsRoute,
+  ApiContentVersionRoute: ApiContentVersionRoute,
   ApiSearchRoute: ApiSearchRoute,
 }
 export const routeTree = rootRouteImport

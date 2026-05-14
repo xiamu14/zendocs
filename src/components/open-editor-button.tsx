@@ -7,6 +7,8 @@ import { Check, Copy, Pencil, LoaderCircle } from "lucide-react";
 import { openWorkspaceMarkdownInEditor } from "@/lib/workspace-markdown";
 
 type MarkdownPageActionsProps = {
+  canOpenInEditor: boolean;
+  editorUrl: string | null;
   markdown: string;
   pagePath: string;
 };
@@ -18,6 +20,8 @@ const actionButtonClass = buttonVariants({
 });
 
 export function MarkdownPageActions({
+  canOpenInEditor,
+  editorUrl,
   markdown,
   pagePath,
 }: MarkdownPageActionsProps) {
@@ -30,6 +34,12 @@ export function MarkdownPageActions({
   async function handleOpen() {
     setIsOpening(true);
     setError(null);
+
+    if (editorUrl) {
+      window.location.href = editorUrl;
+      setIsOpening(false);
+      return;
+    }
 
     try {
       const result = await openWorkspaceMarkdownInEditor({
@@ -51,19 +61,21 @@ export function MarkdownPageActions({
           {copied ? <Check size={14} /> : <Copy size={14} />}
           Copy Markdown
         </button>
-        <button
-          type="button"
-          disabled={isOpening}
-          onClick={handleOpen}
-          className={actionButtonClass}
-        >
-          {isOpening ? (
-            <LoaderCircle size={14} className="animate-spin" />
-          ) : (
-            <Pencil size={14} />
-          )}
-          Open
-        </button>
+        {canOpenInEditor ? (
+          <button
+            type="button"
+            disabled={isOpening}
+            onClick={handleOpen}
+            className={actionButtonClass}
+          >
+            {isOpening ? (
+              <LoaderCircle size={14} className="animate-spin" />
+            ) : (
+              <Pencil size={14} />
+            )}
+            Open
+          </button>
+        ) : null}
       </div>
       {error ? <p className="zd-page-actions-error">{error}</p> : null}
     </div>

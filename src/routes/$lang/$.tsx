@@ -33,7 +33,12 @@ function WorkspaceMarkdownPage() {
       }}
     >
       <DocsTitle>{page.headingTitle}</DocsTitle>
-      <MarkdownPageActions markdown={page.content} pagePath={page.path} />
+      <MarkdownPageActions
+        canOpenInEditor={page.canOpenInEditor}
+        editorUrl={page.editorUrl}
+        markdown={page.content}
+        pagePath={page.path}
+      />
       <DocsBody dangerouslySetInnerHTML={{ __html: page.html }} />
     </DocsPage>
   );

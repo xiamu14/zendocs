@@ -6,9 +6,11 @@ const config = {
 
   // Local editor launched by the Open button on a document page.
   // If args do not include {file}, Zendocs appends the current Markdown file path.
+  // url is used by Docker/browser runtime to open the editor on the host.
   editor: {
     command: "open",
     args: ["-a", "Zed"],
+    url: "zed://file/{file}",
   },
 
   // Files are filtered after confirming the file extension is .md.
