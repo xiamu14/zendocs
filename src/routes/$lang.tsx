@@ -21,7 +21,7 @@ function WorkspaceDocsLayout() {
       nav={{
         title: (
           <span className="inline-flex items-center gap-2">
-            <img src="/zantic-icon.svg" alt="" className="size-5 shrink-0" />
+            <img src="/zantic-icon.svg" alt="" className="size-4 shrink-0" />
             <span>Zendocs</span>
           </span>
         ),
