@@ -19,7 +19,12 @@ function WorkspaceDocsLayout() {
       tree={navigation.tree}
       tabs={false}
       nav={{
-        title: 'Zendocs',
+        title: (
+          <span className="inline-flex items-center gap-2">
+            <img src="/zantic-icon.svg" alt="" className="size-5 shrink-0" />
+            <span>Zendocs</span>
+          </span>
+        ),
         url: `/${Route.useParams().lang}`,
       }}
       sidebar={{

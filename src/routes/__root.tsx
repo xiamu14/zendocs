@@ -7,10 +7,12 @@ import {
 } from '@tanstack/react-router'
 import { RootProvider } from 'fumadocs-ui/provider/tanstack'
 import { i18nUI } from '@/lib/layout.shared'
+import { getWorkspaceSearchFilters } from '@/lib/workspace-markdown'
 import fumadocsStyles from 'fumadocs-ui/style.css?url'
 import fumadocsOverrides from '@/styles/fumadocs-overrides.css?url'
 
 export const Route = createRootRoute({
+  loader: () => getWorkspaceSearchFilters(),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -18,6 +20,7 @@ export const Route = createRootRoute({
       { title: 'Zendocs' },
     ],
     links: [
+      { rel: 'icon', type: 'image/svg+xml', href: '/zantic-icon.svg' },
       { rel: 'stylesheet', href: fumadocsStyles },
       { rel: 'stylesheet', href: fumadocsOverrides },
     ],
@@ -27,6 +30,7 @@ export const Route = createRootRoute({
 
 function RootDocument() {
   const { lang } = useParams({ strict: false })
+  const filters = Route.useLoaderData()
 
   return (
     <html lang={lang ?? 'zh'} suppressHydrationWarning>
@@ -34,7 +38,22 @@ function RootDocument() {
         <HeadContent />
       </head>
       <body>
-        <RootProvider i18n={i18nUI.provider(lang)}>
+        <RootProvider
+          i18n={i18nUI.provider(lang)}
+          search={{
+            options: {
+              api: '/api/search',
+              defaultTag: '',
+              tags: [
+                { name: 'All', value: '' },
+                ...filters.map((filter) => ({
+                  name: filter,
+                  value: filter,
+                })),
+              ],
+            },
+          }}
+        >
           <Outlet />
         </RootProvider>
         <Scripts />

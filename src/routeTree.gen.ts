@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LangRouteImport } from './routes/$lang'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LangIndexRouteImport } from './routes/$lang/index'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as LangSplatRouteImport } from './routes/$lang/$'
 
 const LangRoute = LangRouteImport.update({
@@ -29,6 +30,11 @@ const LangIndexRoute = LangIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LangRoute,
 } as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LangSplatRoute = LangSplatRouteImport.update({
   id: '/$',
   path: '/$',
@@ -39,11 +45,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$lang': typeof LangRouteWithChildren
   '/$lang/$': typeof LangSplatRoute
+  '/api/search': typeof ApiSearchRoute
   '/$lang/': typeof LangIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$lang/$': typeof LangSplatRoute
+  '/api/search': typeof ApiSearchRoute
   '/$lang': typeof LangIndexRoute
 }
 export interface FileRoutesById {
@@ -51,19 +59,21 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$lang': typeof LangRouteWithChildren
   '/$lang/$': typeof LangSplatRoute
+  '/api/search': typeof ApiSearchRoute
   '/$lang/': typeof LangIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$lang' | '/$lang/$' | '/$lang/'
+  fullPaths: '/' | '/$lang' | '/$lang/$' | '/api/search' | '/$lang/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$lang/$' | '/$lang'
-  id: '__root__' | '/' | '/$lang' | '/$lang/$' | '/$lang/'
+  to: '/' | '/$lang/$' | '/api/search' | '/$lang'
+  id: '__root__' | '/' | '/$lang' | '/$lang/$' | '/api/search' | '/$lang/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LangRoute: typeof LangRouteWithChildren
+  ApiSearchRoute: typeof ApiSearchRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -88,6 +98,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lang/'
       preLoaderRoute: typeof LangIndexRouteImport
       parentRoute: typeof LangRoute
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/$lang/$': {
       id: '/$lang/$'
@@ -114,6 +131,7 @@ const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LangRoute: LangRouteWithChildren,
+  ApiSearchRoute: ApiSearchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

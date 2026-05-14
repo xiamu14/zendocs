@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import GithubSlugger from 'github-slugger'
+import type { SortedResult } from 'fumadocs-core/search'
 import { getTableOfContents } from 'fumadocs-core/content/toc'
 import { highlightHast } from 'fumadocs-core/highlight'
 import { toHtml } from 'hast-util-to-html'
@@ -66,6 +67,29 @@ type WorkspaceTreeFolder = {
   children: WorkspaceTreeNode[]
 }
 
+type WorkspaceSearchDocument = {
+  path: string
+  title: string
+  url: string
+  content: string
+  searchableContent: string
+  breadcrumbs: string[]
+  headings: Array<{
+    title: string
+    url: string
+    depth: number
+  }>
+}
+
+type WorkspaceSearchCache = {
+  signature: string
+  checkedAt: number
+  documents: WorkspaceSearchDocument[]
+}
+
+const searchCacheTtlMs = 2000
+let workspaceSearchCache: WorkspaceSearchCache | null = null
+
 function shouldSkipFile(fileName: string, relativePath: string) {
   if (!fileName.toLowerCase().endsWith('.md')) return true
 
@@ -101,6 +125,13 @@ function pageTitle(relativePath: string) {
     .split(/[-_]/)
     .filter(Boolean)
     .join(' ')
+}
+
+function pageBreadcrumbs(relativePath: string) {
+  const directory = path.dirname(relativePath)
+  if (directory === '.') return []
+
+  return directory.split(path.sep).filter(Boolean)
 }
 
 async function walkMarkdownFiles(directory: string, root: string, files: string[]) {
@@ -194,6 +225,277 @@ function escapeHtml(value: string) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
 }
+
+function normalizeSearchText(value: string) {
+  return value.toLocaleLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function tokenText(tokens: MarkedTokenLike[] | undefined): string {
+  if (!tokens) return ''
+
+  return tokens
+    .map((token) => {
+      if (typeof token.text === 'string') return token.text
+      if (Array.isArray(token.tokens)) return tokenText(token.tokens)
+      return ''
+    })
+    .join('')
+}
+
+function collectPlainText(tokens: MarkedTokenLike[]) {
+  const output: string[] = []
+
+  function visit(tokenList: MarkedTokenLike[]) {
+    for (const token of tokenList) {
+      if (typeof token.text === 'string') output.push(token.text)
+
+      if (Array.isArray(token.tokens)) {
+        visit(token.tokens)
+      }
+
+      if (Array.isArray(token.items)) {
+        for (const item of token.items) {
+          if (Array.isArray(item.tokens)) visit(item.tokens)
+        }
+      }
+    }
+  }
+
+  visit(tokens)
+  return output.join(' ')
+}
+
+async function parseSearchContent(content: string) {
+  const { marked } = await import('marked')
+  const tokens = marked.lexer(content)
+  const slugger = new GithubSlugger()
+  const headings: WorkspaceSearchDocument['headings'] = []
+
+  for (const token of tokens) {
+    if (token.type !== 'heading') continue
+
+    const title = tokenText(token.tokens as MarkedTokenLike[]) || token.text
+    if (!title) continue
+
+    headings.push({
+      title,
+      url: `#${slugger.slug(title)}`,
+      depth: token.depth,
+    })
+  }
+
+  return {
+    searchableContent: collectPlainText(tokens as MarkedTokenLike[]),
+    headings,
+  }
+}
+
+async function getWorkspaceSearchDocuments(lang: string) {
+  const now = Date.now()
+  if (workspaceSearchCache && now - workspaceSearchCache.checkedAt < searchCacheTtlMs) {
+    return workspaceSearchCache.documents.map((document) => ({
+      ...document,
+      url: pageUrl(lang, document.path),
+      headings: document.headings.map((heading) => ({
+        ...heading,
+        url: `${pageUrl(lang, document.path)}${heading.url}`,
+      })),
+    }))
+  }
+
+  const files = await getMarkdownPaths()
+  const fileStats = await Promise.all(
+    files.map(async (relativePath) => ({
+      relativePath,
+      info: await stat(path.join(workspaceRoot, relativePath)),
+    })),
+  )
+  const signature = fileStats
+    .map(({ relativePath, info }) => `${relativePath}:${info.mtimeMs}:${info.size}`)
+    .join('|')
+
+  if (workspaceSearchCache?.signature === signature) {
+    workspaceSearchCache.checkedAt = now
+    return workspaceSearchCache.documents.map((document) => ({
+      ...document,
+      url: pageUrl(lang, document.path),
+      headings: document.headings.map((heading) => ({
+        ...heading,
+        url: `${pageUrl(lang, document.path)}${heading.url}`,
+      })),
+    }))
+  }
+
+  const documents = await Promise.all(
+    fileStats.map(async ({ relativePath }) => {
+      const content = await readFile(path.join(workspaceRoot, relativePath), 'utf8')
+      const { searchableContent, headings } = await parseSearchContent(content)
+
+      return {
+        path: relativePath,
+        title: pageTitle(relativePath),
+        url: pageUrl(lang, relativePath),
+        content,
+        searchableContent,
+        breadcrumbs: pageBreadcrumbs(relativePath),
+        headings,
+      }
+    }),
+  )
+
+  workspaceSearchCache = {
+    signature,
+    checkedAt: now,
+    documents,
+  }
+
+  return documents.map((document) => ({
+    ...document,
+    url: pageUrl(lang, document.path),
+    headings: document.headings.map((heading) => ({
+      ...heading,
+      url: `${pageUrl(lang, document.path)}${heading.url}`,
+    })),
+  }))
+}
+
+function firstMatchIndex(value: string, terms: string[]) {
+  const normalized = normalizeSearchText(value)
+  let bestIndex = -1
+
+  for (const term of terms) {
+    const index = normalized.indexOf(term)
+    if (index === -1) continue
+    if (bestIndex === -1 || index < bestIndex) bestIndex = index
+  }
+
+  return bestIndex
+}
+
+function highlightMatches(value: string, terms: string[]) {
+  if (terms.length === 0) return escapeHtml(value)
+
+  const pattern = new RegExp(
+    `(${terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+    'gi',
+  )
+
+  return escapeHtml(value).replace(pattern, '<mark>$1</mark>')
+}
+
+function createSnippet(value: string, terms: string[]) {
+  const normalizedValue = value.replace(/\s+/g, ' ').trim()
+  const index = firstMatchIndex(normalizedValue, terms)
+  const start = Math.max(0, index - 48)
+  const end = index === -1 ? 140 : Math.min(normalizedValue.length, index + 120)
+  const prefix = start > 0 ? '...' : ''
+  const suffix = end < normalizedValue.length ? '...' : ''
+
+  return `${prefix}${highlightMatches(normalizedValue.slice(start, end), terms)}${suffix}`
+}
+
+function scoreMatch(value: string, terms: string[], weight: number) {
+  const normalized = normalizeSearchText(value)
+  let score = 0
+
+  for (const term of terms) {
+    const index = normalized.indexOf(term)
+    if (index === -1) continue
+
+    score += weight
+    if (index === 0) score += Math.round(weight / 2)
+  }
+
+  return score
+}
+
+async function searchWorkspaceMarkdown({
+  lang,
+  query,
+  filter,
+  limit = 20,
+}: {
+  lang: string
+  query: string
+  filter?: string
+  limit?: number
+}): Promise<SortedResult[]> {
+  const terms = normalizeSearchText(query).split(' ').filter(Boolean)
+  if (terms.length === 0) return []
+
+  const documents = (await getWorkspaceSearchDocuments(lang)).filter(
+    (document) => !filter || document.breadcrumbs[0] === filter,
+  )
+  const results: Array<SortedResult & { score: number }> = []
+
+  for (const document of documents) {
+    const titleScore =
+      scoreMatch(document.title, terms, 70) +
+      scoreMatch(document.path, terms, 45)
+
+    if (titleScore > 0) {
+      results.push({
+        id: `page:${document.path}`,
+        type: 'page',
+        url: document.url,
+        breadcrumbs: document.breadcrumbs,
+        content: highlightMatches(document.title, terms),
+        score: titleScore,
+      })
+    }
+
+    for (const heading of document.headings) {
+      const headingScore = scoreMatch(heading.title, terms, 55)
+
+      if (headingScore > 0) {
+        results.push({
+          id: `heading:${document.path}:${heading.url}`,
+          type: 'heading',
+          url: heading.url,
+          content: highlightMatches(heading.title, terms),
+          score: headingScore + Math.max(0, 6 - heading.depth),
+        })
+      }
+    }
+
+    const contentScore = scoreMatch(document.searchableContent, terms, 18)
+
+    if (contentScore > 0) {
+      results.push({
+        id: `text:${document.path}`,
+        type: 'text',
+        url: document.url,
+        content: createSnippet(document.searchableContent, terms),
+        score: contentScore,
+      })
+    }
+  }
+
+  return results
+    .sort((a, b) => b.score - a.score || a.url.localeCompare(b.url))
+    .slice(0, limit)
+    .map(({ score: _, ...result }) => result)
+}
+
+export const searchWorkspaceMarkdownServer = createServerFn({ method: 'GET' })
+  .inputValidator(
+    (data: { lang: string; query: string; filter?: string; limit?: number }) => data,
+  )
+  .handler(({ data }) => searchWorkspaceMarkdown(data))
+
+export const getWorkspaceSearchFilters = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const files = await getMarkdownPaths()
+    const filters = new Set<string>()
+
+    for (const relativePath of files) {
+      const [first, ...rest] = relativePath.split(path.sep)
+      if (first && rest.length > 0) filters.add(first)
+    }
+
+    return Array.from(filters).sort((a, b) => a.localeCompare(b))
+  },
+)
 
 function parseCodeMeta(info?: string) {
   const [language = 'txt', ...meta] = (info ?? '').trim().split(/\s+/)
