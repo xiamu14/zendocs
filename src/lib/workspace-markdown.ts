@@ -1,171 +1,187 @@
-import { createServerFn } from '@tanstack/react-start'
-import { readdir, readFile, stat } from 'node:fs/promises'
-import path from 'node:path'
-import GithubSlugger from 'github-slugger'
-import type { SortedResult } from 'fumadocs-core/search'
-import { getTableOfContents } from 'fumadocs-core/content/toc'
-import { highlightHast } from 'fumadocs-core/highlight'
-import { toHtml } from 'hast-util-to-html'
-import config from '../../config'
-import { matchesAnyRule } from './zendocs-config'
+import { createServerFn } from "@tanstack/react-start";
+import { readdir, readFile, stat } from "node:fs/promises";
+import path from "node:path";
+import GithubSlugger from "github-slugger";
+import type { SortedResult } from "fumadocs-core/search";
+import { getTableOfContents } from "fumadocs-core/content/toc";
+import { highlightHast } from "fumadocs-core/highlight";
+import { toHtml } from "hast-util-to-html";
+import config from "../../config";
+import { matchesAnyRule } from "./zendocs-config";
 
 type MarkedTokenLike = {
-  type?: string
-  raw?: string
-  text?: string
-  lang?: string
-  tokens?: MarkedTokenLike[]
-  items?: Array<{ tokens?: MarkedTokenLike[] }>
-}
+  type?: string;
+  raw?: string;
+  text?: string;
+  lang?: string;
+  tokens?: MarkedTokenLike[];
+  items?: Array<{ tokens?: MarkedTokenLike[] }>;
+};
 
-const workspaceRoot = config.readDirectory
-const maxFileSizeBytes = config.maxFileSizeBytes ?? 1024 * 1024
+const workspaceRoot = config.readDirectory;
+const maxFileSizeBytes = config.maxFileSizeBytes ?? 1024 * 1024;
 
 export type WorkspaceMarkdownPage = {
-  path: string
-  name: string
-  title: string
-  url: string
-  lastUpdate: string
-  content: string
-  html: string
-  toc: WorkspaceTocItem[]
-}
+  path: string;
+  name: string;
+  title: string;
+  url: string;
+  lastUpdate: string;
+  content: string;
+  html: string;
+  toc: WorkspaceTocItem[];
+};
 
 export type WorkspaceNavigation = {
-  root: string
-  tree: WorkspaceTreeRoot
-  pages: Array<Pick<WorkspaceMarkdownPage, 'path' | 'name' | 'title' | 'url'>>
-  firstUrl: string | null
-}
+  root: string;
+  tree: WorkspaceTreeRoot;
+  pages: Array<Pick<WorkspaceMarkdownPage, "path" | "name" | "title" | "url">>;
+  firstUrl: string | null;
+};
 
 export type WorkspaceTocItem = {
-  title: string
-  url: string
-  depth: number
-}
+  title: string;
+  url: string;
+  depth: number;
+};
 
 type WorkspaceTreeRoot = {
-  $id: string
-  name: string
-  children: WorkspaceTreeNode[]
-}
+  $id: string;
+  name: string;
+  children: WorkspaceTreeNode[];
+};
 
-type WorkspaceTreeNode = WorkspaceTreePage | WorkspaceTreeFolder
+type WorkspaceTreeNode =
+  | WorkspaceTreePage
+  | WorkspaceTreeFolder
+  | WorkspaceTreeSeparator;
 
 type WorkspaceTreePage = {
-  type: 'page'
-  name: string
-  url: string
-}
+  type: "page";
+  name: string;
+  url: string;
+};
 
 type WorkspaceTreeFolder = {
-  type: 'folder'
-  name: string
-  defaultOpen: boolean
-  collapsible: boolean
-  children: WorkspaceTreeNode[]
-}
+  type: "folder";
+  name: string;
+  defaultOpen: boolean;
+  collapsible: boolean;
+  children: WorkspaceTreeNode[];
+};
+
+type WorkspaceTreeSeparator = {
+  type: "separator";
+  name: string;
+};
 
 type WorkspaceSearchDocument = {
-  path: string
-  title: string
-  url: string
-  content: string
-  searchableContent: string
-  breadcrumbs: string[]
+  path: string;
+  title: string;
+  url: string;
+  content: string;
+  searchableContent: string;
+  breadcrumbs: string[];
   headings: Array<{
-    title: string
-    url: string
-    depth: number
-  }>
-}
+    title: string;
+    url: string;
+    depth: number;
+  }>;
+};
 
 type WorkspaceSearchCache = {
-  signature: string
-  checkedAt: number
-  documents: WorkspaceSearchDocument[]
-}
+  signature: string;
+  checkedAt: number;
+  documents: WorkspaceSearchDocument[];
+};
 
-const searchCacheTtlMs = 2000
-let workspaceSearchCache: WorkspaceSearchCache | null = null
+const searchCacheTtlMs = 2000;
+let workspaceSearchCache: WorkspaceSearchCache | null = null;
 
 function shouldSkipFile(fileName: string, relativePath: string) {
-  if (!fileName.toLowerCase().endsWith('.md')) return true
+  if (!fileName.toLowerCase().endsWith(".md")) return true;
 
-  const stem = fileName.slice(0, -'.md'.length)
-  const relativeStem = relativePath.slice(0, -'.md'.length)
+  const stem = fileName.slice(0, -".md".length);
+  const relativeStem = relativePath.slice(0, -".md".length);
 
   return matchesAnyRule(config.filterFiles, [
     fileName,
     stem,
     relativePath,
     relativeStem,
-  ])
+  ]);
 }
 
 function shouldSkipDirectory(directoryName: string, relativePath: string) {
-  return matchesAnyRule(config.filterDirectories, [directoryName, relativePath])
+  return matchesAnyRule(config.filterDirectories, [
+    directoryName,
+    relativePath,
+  ]);
 }
 
 function encodePagePath(relativePath: string) {
   return relativePath
     .split(path.sep)
     .map((segment) => decodeURI(encodeURIComponent(segment)))
-    .join('/')
+    .join("/");
 }
 
 function pageUrl(lang: string, relativePath: string) {
-  return `/${lang}/${encodePagePath(relativePath)}`
+  return `/${lang}/${encodePagePath(relativePath)}`;
 }
 
 function pageTitle(relativePath: string) {
-  const name = path.basename(relativePath, '.md')
-  return name
-    .split(/[-_]/)
-    .filter(Boolean)
-    .join(' ')
+  const name = path.basename(relativePath, ".md");
+  return name.split(/[-_]/).filter(Boolean).join(" ");
+}
+
+function groupTitle(directoryName: string) {
+  return directoryName.charAt(0).toLocaleUpperCase() + directoryName.slice(1);
 }
 
 function pageBreadcrumbs(relativePath: string) {
-  const directory = path.dirname(relativePath)
-  if (directory === '.') return []
+  const directory = path.dirname(relativePath);
+  if (directory === ".") return [];
 
-  return directory.split(path.sep).filter(Boolean)
+  return directory.split(path.sep).filter(Boolean);
 }
 
-async function walkMarkdownFiles(directory: string, root: string, files: string[]) {
-  const entries = await readdir(directory, { withFileTypes: true })
+async function walkMarkdownFiles(
+  directory: string,
+  root: string,
+  files: string[],
+) {
+  const entries = await readdir(directory, { withFileTypes: true });
 
   await Promise.all(
     entries.map(async (entry) => {
-      if (entry.name.startsWith('.') && entry.name !== '.agents') return
+      if (entry.name.startsWith(".") && entry.name !== ".agents") return;
 
-      const absolutePath = path.join(directory, entry.name)
-      const relativePath = path.relative(root, absolutePath)
+      const absolutePath = path.join(directory, entry.name);
+      const relativePath = path.relative(root, absolutePath);
 
       if (entry.isDirectory()) {
-        if (shouldSkipDirectory(entry.name, relativePath)) return
-        await walkMarkdownFiles(absolutePath, root, files)
-        return
+        if (shouldSkipDirectory(entry.name, relativePath)) return;
+        await walkMarkdownFiles(absolutePath, root, files);
+        return;
       }
 
-      if (!entry.isFile() || shouldSkipFile(entry.name, relativePath)) return
+      if (!entry.isFile() || shouldSkipFile(entry.name, relativePath)) return;
 
-      const info = await stat(absolutePath)
-      if (info.size > maxFileSizeBytes) return
+      const info = await stat(absolutePath);
+      if (info.size > maxFileSizeBytes) return;
 
-      files.push(relativePath)
+      files.push(relativePath);
     }),
-  )
+  );
 }
 
 async function getMarkdownPaths() {
-  const files: string[] = []
+  const files: string[] = [];
 
-  await walkMarkdownFiles(workspaceRoot, workspaceRoot, files)
+  await walkMarkdownFiles(workspaceRoot, workspaceRoot, files);
 
-  return files.sort((a, b) => a.localeCompare(b))
+  return files.sort((a, b) => a.localeCompare(b));
 }
 
 function insertIntoTree(
@@ -173,126 +189,159 @@ function insertIntoTree(
   parts: string[],
   page: WorkspaceTreePage,
 ) {
-  const [part, ...rest] = parts
-  if (!part) return
+  const [part, ...rest] = parts;
+  if (!part) return;
 
   if (rest.length === 0) {
-    children.push(page)
-    return
+    children.push(page);
+    return;
   }
 
   let folder = children.find(
     (node): node is WorkspaceTreeFolder =>
-      node.type === 'folder' && node.name === part,
-  )
+      node.type === "folder" && node.name === part,
+  );
 
   if (!folder) {
     folder = {
-      type: 'folder',
+      type: "folder",
       name: part,
       defaultOpen: false,
       collapsible: true,
       children: [],
-    }
-    children.push(folder)
+    };
+    children.push(folder);
   }
 
-  insertIntoTree(folder.children, rest, page)
+  insertIntoTree(folder.children, rest, page);
 }
 
 function buildTree(files: string[], lang: string): WorkspaceTreeRoot {
   const tree: WorkspaceTreeRoot = {
     $id: `workspace:${lang}`,
-    name: 'Zendocs',
+    name: "Zendocs",
     children: [],
-  }
+  };
+  const groupedFiles = new Map<string, string[]>();
 
   for (const relativePath of files) {
-    insertIntoTree(tree.children, relativePath.split(path.sep), {
-      type: 'page',
-      name: pageTitle(relativePath),
-      url: pageUrl(lang, relativePath),
-    })
+    const parts = relativePath.split(path.sep);
+
+    if (parts.length === 1) {
+      insertIntoTree(tree.children, parts, {
+        type: "page",
+        name: pageTitle(relativePath),
+        url: pageUrl(lang, relativePath),
+      });
+      continue;
+    }
+
+    const [groupName, ...rest] = parts;
+    if (!groupName) continue;
+
+    const groupFiles = groupedFiles.get(groupName) ?? [];
+    groupFiles.push(rest.join(path.sep));
+    groupedFiles.set(groupName, groupFiles);
   }
 
-  return tree
+  for (const [groupName, groupFiles] of groupedFiles) {
+    tree.children.push({
+      type: "separator",
+      name: groupTitle(groupName),
+    });
+
+    for (const relativePathWithinGroup of groupFiles) {
+      const relativePath = path.join(groupName, relativePathWithinGroup);
+
+      insertIntoTree(tree.children, relativePathWithinGroup.split(path.sep), {
+        type: "page",
+        name: pageTitle(relativePath),
+        url: pageUrl(lang, relativePath),
+      });
+    }
+  }
+
+  return tree;
 }
 
 function escapeHtml(value: string) {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function normalizeSearchText(value: string) {
-  return value.toLocaleLowerCase().replace(/\s+/g, ' ').trim()
+  return value.toLocaleLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function tokenText(tokens: MarkedTokenLike[] | undefined): string {
-  if (!tokens) return ''
+  if (!tokens) return "";
 
   return tokens
     .map((token) => {
-      if (typeof token.text === 'string') return token.text
-      if (Array.isArray(token.tokens)) return tokenText(token.tokens)
-      return ''
+      if (typeof token.text === "string") return token.text;
+      if (Array.isArray(token.tokens)) return tokenText(token.tokens);
+      return "";
     })
-    .join('')
+    .join("");
 }
 
 function collectPlainText(tokens: MarkedTokenLike[]) {
-  const output: string[] = []
+  const output: string[] = [];
 
   function visit(tokenList: MarkedTokenLike[]) {
     for (const token of tokenList) {
-      if (typeof token.text === 'string') output.push(token.text)
+      if (typeof token.text === "string") output.push(token.text);
 
       if (Array.isArray(token.tokens)) {
-        visit(token.tokens)
+        visit(token.tokens);
       }
 
       if (Array.isArray(token.items)) {
         for (const item of token.items) {
-          if (Array.isArray(item.tokens)) visit(item.tokens)
+          if (Array.isArray(item.tokens)) visit(item.tokens);
         }
       }
     }
   }
 
-  visit(tokens)
-  return output.join(' ')
+  visit(tokens);
+  return output.join(" ");
 }
 
 async function parseSearchContent(content: string) {
-  const { marked } = await import('marked')
-  const tokens = marked.lexer(content)
-  const slugger = new GithubSlugger()
-  const headings: WorkspaceSearchDocument['headings'] = []
+  const { marked } = await import("marked");
+  const tokens = marked.lexer(content);
+  const slugger = new GithubSlugger();
+  const headings: WorkspaceSearchDocument["headings"] = [];
 
   for (const token of tokens) {
-    if (token.type !== 'heading') continue
+    if (token.type !== "heading") continue;
 
-    const title = tokenText(token.tokens as MarkedTokenLike[]) || token.text
-    if (!title) continue
+    const title = tokenText(token.tokens as MarkedTokenLike[]) || token.text;
+    if (!title) continue;
 
     headings.push({
       title,
       url: `#${slugger.slug(title)}`,
       depth: token.depth,
-    })
+    });
   }
 
   return {
     searchableContent: collectPlainText(tokens as MarkedTokenLike[]),
     headings,
-  }
+  };
 }
 
 async function getWorkspaceSearchDocuments(lang: string) {
-  const now = Date.now()
-  if (workspaceSearchCache && now - workspaceSearchCache.checkedAt < searchCacheTtlMs) {
+  const now = Date.now();
+  if (
+    workspaceSearchCache &&
+    now - workspaceSearchCache.checkedAt < searchCacheTtlMs
+  ) {
     return workspaceSearchCache.documents.map((document) => ({
       ...document,
       url: pageUrl(lang, document.path),
@@ -300,22 +349,25 @@ async function getWorkspaceSearchDocuments(lang: string) {
         ...heading,
         url: `${pageUrl(lang, document.path)}${heading.url}`,
       })),
-    }))
+    }));
   }
 
-  const files = await getMarkdownPaths()
+  const files = await getMarkdownPaths();
   const fileStats = await Promise.all(
     files.map(async (relativePath) => ({
       relativePath,
       info: await stat(path.join(workspaceRoot, relativePath)),
     })),
-  )
+  );
   const signature = fileStats
-    .map(({ relativePath, info }) => `${relativePath}:${info.mtimeMs}:${info.size}`)
-    .join('|')
+    .map(
+      ({ relativePath, info }) =>
+        `${relativePath}:${info.mtimeMs}:${info.size}`,
+    )
+    .join("|");
 
   if (workspaceSearchCache?.signature === signature) {
-    workspaceSearchCache.checkedAt = now
+    workspaceSearchCache.checkedAt = now;
     return workspaceSearchCache.documents.map((document) => ({
       ...document,
       url: pageUrl(lang, document.path),
@@ -323,13 +375,16 @@ async function getWorkspaceSearchDocuments(lang: string) {
         ...heading,
         url: `${pageUrl(lang, document.path)}${heading.url}`,
       })),
-    }))
+    }));
   }
 
   const documents = await Promise.all(
     fileStats.map(async ({ relativePath }) => {
-      const content = await readFile(path.join(workspaceRoot, relativePath), 'utf8')
-      const { searchableContent, headings } = await parseSearchContent(content)
+      const content = await readFile(
+        path.join(workspaceRoot, relativePath),
+        "utf8",
+      );
+      const { searchableContent, headings } = await parseSearchContent(content);
 
       return {
         path: relativePath,
@@ -339,15 +394,15 @@ async function getWorkspaceSearchDocuments(lang: string) {
         searchableContent,
         breadcrumbs: pageBreadcrumbs(relativePath),
         headings,
-      }
+      };
     }),
-  )
+  );
 
   workspaceSearchCache = {
     signature,
     checkedAt: now,
     documents,
-  }
+  };
 
   return documents.map((document) => ({
     ...document,
@@ -356,57 +411,58 @@ async function getWorkspaceSearchDocuments(lang: string) {
       ...heading,
       url: `${pageUrl(lang, document.path)}${heading.url}`,
     })),
-  }))
+  }));
 }
 
 function firstMatchIndex(value: string, terms: string[]) {
-  const normalized = normalizeSearchText(value)
-  let bestIndex = -1
+  const normalized = normalizeSearchText(value);
+  let bestIndex = -1;
 
   for (const term of terms) {
-    const index = normalized.indexOf(term)
-    if (index === -1) continue
-    if (bestIndex === -1 || index < bestIndex) bestIndex = index
+    const index = normalized.indexOf(term);
+    if (index === -1) continue;
+    if (bestIndex === -1 || index < bestIndex) bestIndex = index;
   }
 
-  return bestIndex
+  return bestIndex;
 }
 
 function highlightMatches(value: string, terms: string[]) {
-  if (terms.length === 0) return escapeHtml(value)
+  if (terms.length === 0) return escapeHtml(value);
 
   const pattern = new RegExp(
-    `(${terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
-    'gi',
-  )
+    `(${terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+    "gi",
+  );
 
-  return escapeHtml(value).replace(pattern, '<mark>$1</mark>')
+  return escapeHtml(value).replace(pattern, "<mark>$1</mark>");
 }
 
 function createSnippet(value: string, terms: string[]) {
-  const normalizedValue = value.replace(/\s+/g, ' ').trim()
-  const index = firstMatchIndex(normalizedValue, terms)
-  const start = Math.max(0, index - 48)
-  const end = index === -1 ? 140 : Math.min(normalizedValue.length, index + 120)
-  const prefix = start > 0 ? '...' : ''
-  const suffix = end < normalizedValue.length ? '...' : ''
+  const normalizedValue = value.replace(/\s+/g, " ").trim();
+  const index = firstMatchIndex(normalizedValue, terms);
+  const start = Math.max(0, index - 48);
+  const end =
+    index === -1 ? 140 : Math.min(normalizedValue.length, index + 120);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < normalizedValue.length ? "..." : "";
 
-  return `${prefix}${highlightMatches(normalizedValue.slice(start, end), terms)}${suffix}`
+  return `${prefix}${highlightMatches(normalizedValue.slice(start, end), terms)}${suffix}`;
 }
 
 function scoreMatch(value: string, terms: string[], weight: number) {
-  const normalized = normalizeSearchText(value)
-  let score = 0
+  const normalized = normalizeSearchText(value);
+  let score = 0;
 
   for (const term of terms) {
-    const index = normalized.indexOf(term)
-    if (index === -1) continue
+    const index = normalized.indexOf(term);
+    if (index === -1) continue;
 
-    score += weight
-    if (index === 0) score += Math.round(weight / 2)
+    score += weight;
+    if (index === 0) score += Math.round(weight / 2);
   }
 
-  return score
+  return score;
 }
 
 async function searchWorkspaceMarkdown({
@@ -415,195 +471,206 @@ async function searchWorkspaceMarkdown({
   filter,
   limit = 20,
 }: {
-  lang: string
-  query: string
-  filter?: string
-  limit?: number
+  lang: string;
+  query: string;
+  filter?: string;
+  limit?: number;
 }): Promise<SortedResult[]> {
-  const terms = normalizeSearchText(query).split(' ').filter(Boolean)
-  if (terms.length === 0) return []
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean);
+  if (terms.length === 0) return [];
 
   const documents = (await getWorkspaceSearchDocuments(lang)).filter(
     (document) => !filter || document.breadcrumbs[0] === filter,
-  )
-  const results: Array<SortedResult & { score: number }> = []
+  );
+  const results: Array<SortedResult & { score: number }> = [];
 
   for (const document of documents) {
     const titleScore =
       scoreMatch(document.title, terms, 70) +
-      scoreMatch(document.path, terms, 45)
+      scoreMatch(document.path, terms, 45);
 
     if (titleScore > 0) {
       results.push({
         id: `page:${document.path}`,
-        type: 'page',
+        type: "page",
         url: document.url,
         breadcrumbs: document.breadcrumbs,
         content: highlightMatches(document.title, terms),
         score: titleScore,
-      })
+      });
     }
 
     for (const heading of document.headings) {
-      const headingScore = scoreMatch(heading.title, terms, 55)
+      const headingScore = scoreMatch(heading.title, terms, 55);
 
       if (headingScore > 0) {
         results.push({
           id: `heading:${document.path}:${heading.url}`,
-          type: 'heading',
+          type: "heading",
           url: heading.url,
           content: highlightMatches(heading.title, terms),
           score: headingScore + Math.max(0, 6 - heading.depth),
-        })
+        });
       }
     }
 
-    const contentScore = scoreMatch(document.searchableContent, terms, 18)
+    const contentScore = scoreMatch(document.searchableContent, terms, 18);
 
     if (contentScore > 0) {
       results.push({
         id: `text:${document.path}`,
-        type: 'text',
+        type: "text",
         url: document.url,
         content: createSnippet(document.searchableContent, terms),
         score: contentScore,
-      })
+      });
     }
   }
 
   return results
     .sort((a, b) => b.score - a.score || a.url.localeCompare(b.url))
     .slice(0, limit)
-    .map(({ score: _, ...result }) => result)
+    .map(({ score: _, ...result }) => result);
 }
 
-export const searchWorkspaceMarkdownServer = createServerFn({ method: 'GET' })
+export const searchWorkspaceMarkdownServer = createServerFn({ method: "GET" })
   .inputValidator(
-    (data: { lang: string; query: string; filter?: string; limit?: number }) => data,
+    (data: { lang: string; query: string; filter?: string; limit?: number }) =>
+      data,
   )
-  .handler(({ data }) => searchWorkspaceMarkdown(data))
+  .handler(({ data }) => searchWorkspaceMarkdown(data));
 
-export const getWorkspaceSearchFilters = createServerFn({ method: 'GET' }).handler(
-  async () => {
-    const files = await getMarkdownPaths()
-    const filters = new Set<string>()
+export const getWorkspaceSearchFilters = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const files = await getMarkdownPaths();
+  const filters = new Set<string>();
 
-    for (const relativePath of files) {
-      const [first, ...rest] = relativePath.split(path.sep)
-      if (first && rest.length > 0) filters.add(first)
-    }
+  for (const relativePath of files) {
+    const [first, ...rest] = relativePath.split(path.sep);
+    if (first && rest.length > 0) filters.add(first);
+  }
 
-    return Array.from(filters).sort((a, b) => a.localeCompare(b))
-  },
-)
+  return Array.from(filters).sort((a, b) => a.localeCompare(b));
+});
 
 function parseCodeMeta(info?: string) {
-  const [language = 'txt', ...meta] = (info ?? '').trim().split(/\s+/)
-  const metaText = meta.join(' ')
+  const [language = "txt", ...meta] = (info ?? "").trim().split(/\s+/);
+  const metaText = meta.join(" ");
   const title =
-    /(?:title|filename)=["']?([^"'\s]+)["']?/.exec(metaText)?.[1] ?? undefined
+    /(?:title|filename)=["']?([^"'\s]+)["']?/.exec(metaText)?.[1] ?? undefined;
 
   return {
-    language: language || 'txt',
+    language: language || "txt",
     title,
-  }
+  };
 }
 
 function withPreClass(html: string) {
   return html.replace(
     '<pre class="',
     '<pre class="min-w-full w-max *:flex *:flex-col ',
-  )
+  );
 }
 
 async function renderCodeBlock(code: string, info?: string) {
-  const { language, title } = parseCodeMeta(info)
-  let highlighted: string
+  const { language, title } = parseCodeMeta(info);
+  let highlighted: string;
 
   try {
     highlighted = toHtml(
       await highlightHast(code, {
         lang: language as never,
-        fallbackLanguage: 'txt' as never,
+        fallbackLanguage: "txt" as never,
         themes: {
-          light: 'catppuccin-latte',
-          dark: 'catppuccin-mocha',
+          light: "catppuccin-latte",
+          dark: "catppuccin-mocha",
         },
         defaultColor: false,
       }),
-    )
+    );
   } catch {
-    highlighted = `<pre class="min-w-full w-max *:flex *:flex-col shiki"><code>${escapeHtml(code)}</code></pre>`
+    highlighted = `<pre class="min-w-full w-max *:flex *:flex-col shiki"><code>${escapeHtml(code)}</code></pre>`;
   }
 
   const header = title
     ? `<div class="flex text-fd-muted-foreground items-center gap-2 h-9.5 border-b px-4"><figcaption class="flex-1 truncate">${escapeHtml(title)}</figcaption></div>`
-    : ''
+    : "";
 
-  return `<figure dir="ltr" tabindex="-1" class="my-4 bg-fd-card rounded-xl shiki relative border shadow-sm not-prose overflow-hidden text-sm">${header}<div role="region" tabindex="0" class="text-[0.8125rem] py-3.5 overflow-auto max-h-[600px] fd-scroll-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fd-ring">${withPreClass(highlighted)}</div></figure>`
+  return `<figure dir="ltr" tabindex="-1" class="my-4 bg-fd-card rounded-xl shiki relative border shadow-sm not-prose overflow-hidden text-sm">${header}<div role="region" tabindex="0" class="text-[0.8125rem] py-3.5 overflow-auto max-h-[600px] fd-scroll-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fd-ring">${withPreClass(highlighted)}</div></figure>`;
 }
 
 function collectCodeTokens(tokens: MarkedTokenLike[]) {
-  const output: Array<{ key: string; text: string; lang?: string }> = []
+  const output: Array<{ key: string; text: string; lang?: string }> = [];
 
   function visit(tokenList: MarkedTokenLike[]) {
     for (const token of tokenList) {
-      if (token.type === 'code' && token.raw && typeof token.text === 'string') {
+      if (
+        token.type === "code" &&
+        token.raw &&
+        typeof token.text === "string"
+      ) {
         output.push({
           key: token.raw,
           text: token.text,
           lang: token.lang,
-        })
+        });
       }
 
-      if ('tokens' in token && Array.isArray(token.tokens)) {
-        visit(token.tokens)
+      if ("tokens" in token && Array.isArray(token.tokens)) {
+        visit(token.tokens);
       }
 
-      if ('items' in token && Array.isArray(token.items)) {
+      if ("items" in token && Array.isArray(token.items)) {
         for (const item of token.items) {
-          if ('tokens' in item && Array.isArray(item.tokens)) {
-            visit(item.tokens)
+          if ("tokens" in item && Array.isArray(item.tokens)) {
+            visit(item.tokens);
           }
         }
       }
     }
   }
 
-  visit(tokens)
-  return output
+  visit(tokens);
+  return output;
 }
 
 async function renderMarkdown(content: string) {
   const [{ marked }, toc] = await Promise.all([
-    import('marked'),
+    import("marked"),
     Promise.resolve(getTableOfContents(content)),
-  ])
-  const tokens = marked.lexer(content)
-  const highlightedBlocks = new Map<string, string>()
-  const codeTokens = collectCodeTokens(tokens)
+  ]);
+  const tokens = marked.lexer(content);
+  const highlightedBlocks = new Map<string, string>();
+  const codeTokens = collectCodeTokens(tokens);
 
   await Promise.all(
     codeTokens.map(async (token) => {
-      highlightedBlocks.set(token.key, await renderCodeBlock(token.text, token.lang))
+      highlightedBlocks.set(
+        token.key,
+        await renderCodeBlock(token.text, token.lang),
+      );
     }),
-  )
+  );
 
-  const slugger = new GithubSlugger()
-  const renderer = new marked.Renderer()
+  const slugger = new GithubSlugger();
+  const renderer = new marked.Renderer();
 
   renderer.code = (token) =>
-    highlightedBlocks.get(token.raw) ?? `<pre><code>${escapeHtml(token.text)}</code></pre>`
+    highlightedBlocks.get(token.raw) ??
+    `<pre><code>${escapeHtml(token.text)}</code></pre>`;
 
   renderer.heading = ({ tokens, depth }) => {
     const text = tokens
-      .map((token) => 'text' in token && typeof token.text === 'string' ? token.text : '')
-      .join('')
-    const html = renderer.parser.parseInline(tokens)
-    const id = slugger.slug(text)
+      .map((token) =>
+        "text" in token && typeof token.text === "string" ? token.text : "",
+      )
+      .join("");
+    const html = renderer.parser.parseInline(tokens);
+    const id = slugger.slug(text);
 
-    return `<h${depth} id="${escapeHtml(id)}">${html}</h${depth}>`
-  }
+    return `<h${depth} id="${escapeHtml(id)}">${html}</h${depth}>`;
+  };
 
   return {
     html: marked.parser(tokens, { renderer }),
@@ -612,43 +679,43 @@ async function renderMarkdown(content: string) {
       url: item.url,
       depth: item.depth,
     })),
-  }
+  };
 }
 
-export const getWorkspaceNavigation = createServerFn({ method: 'GET' })
+export const getWorkspaceNavigation = createServerFn({ method: "GET" })
   .inputValidator((data: { lang: string }) => data)
   .handler(async ({ data }): Promise<WorkspaceNavigation> => {
-    const files = await getMarkdownPaths()
+    const files = await getMarkdownPaths();
     const pages = files.map((relativePath) => ({
       path: relativePath,
       name: path.basename(relativePath),
       title: pageTitle(relativePath),
       url: pageUrl(data.lang, relativePath),
-    }))
+    }));
 
     return {
       root: workspaceRoot,
       tree: buildTree(files, data.lang),
       pages,
       firstUrl: pages[0]?.url ?? null,
-    }
-  })
+    };
+  });
 
-export const getWorkspaceMarkdownPage = createServerFn({ method: 'GET' })
+export const getWorkspaceMarkdownPage = createServerFn({ method: "GET" })
   .inputValidator((data: { lang: string; pagePath: string }) => data)
   .handler(async ({ data }): Promise<WorkspaceMarkdownPage | null> => {
-    const normalizedPath = decodeURIComponent(data.pagePath)
-    const files = await getMarkdownPaths()
-    const relativePath = files.find((file) => file === normalizedPath)
+    const normalizedPath = decodeURIComponent(data.pagePath);
+    const files = await getMarkdownPaths();
+    const relativePath = files.find((file) => file === normalizedPath);
 
-    if (!relativePath) return null
+    if (!relativePath) return null;
 
-    const absolutePath = path.join(workspaceRoot, relativePath)
+    const absolutePath = path.join(workspaceRoot, relativePath);
     const [content, fileInfo] = await Promise.all([
-      readFile(absolutePath, 'utf8'),
+      readFile(absolutePath, "utf8"),
       stat(absolutePath),
-    ])
-    const { html, toc } = await renderMarkdown(content)
+    ]);
+    const { html, toc } = await renderMarkdown(content);
 
     return {
       path: relativePath,
@@ -659,5 +726,5 @@ export const getWorkspaceMarkdownPage = createServerFn({ method: 'GET' })
       content,
       html,
       toc,
-    }
-  })
+    };
+  });

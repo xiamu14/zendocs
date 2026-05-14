@@ -14,6 +14,22 @@
   color: oklch(55% 0.15 64) !important;
 }
 
+#nd-sidebar p,
+#nd-sidebar-mobile p {
+  margin: 1.45rem 0 0.45rem;
+  padding: 0 0.625rem;
+  color: oklch(22% 0.01 72);
+  font-size: 0.875rem;
+  /*font-weight: 650;*/
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+#nd-sidebar p:first-child,
+#nd-sidebar-mobile p:first-child {
+  margin-top: 0.375rem;
+}
+
 #nd-sidebar
   [class*="flex-col"][class*="p-4"][class*="pt-2"]:has(> button:first-child) {
   display: grid;
