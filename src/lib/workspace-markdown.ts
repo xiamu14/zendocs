@@ -110,6 +110,7 @@ type WorkspaceSearchCache = {
   documents: WorkspaceSearchDocument[];
 };
 
+const workspaceRootPath = path.resolve(workspaceRoot);
 const searchCacheTtlMs = 2000;
 let workspaceSearchCache: WorkspaceSearchCache | null = null;
 
@@ -182,13 +183,30 @@ function pageBreadcrumbs(relativePath: string) {
 }
 
 function isPathInsideWorkspace(absolutePath: string) {
-  const relativePath = path.relative(path.resolve(workspaceRoot), absolutePath);
+  const relativePath = path.relative(workspaceRootPath, absolutePath);
 
   return (
-    Boolean(relativePath) &&
+    (relativePath === "" || Boolean(relativePath)) &&
     !relativePath.startsWith("..") &&
     !path.isAbsolute(relativePath)
   );
+}
+
+export function getWorkspaceAssetPath(relativePath: string) {
+  const normalizedPath = path.normalize(relativePath);
+  const absolutePath = path.resolve(workspaceRootPath, normalizedPath);
+
+  if (!isPathInsideWorkspace(absolutePath)) return null;
+
+  return absolutePath;
+}
+
+function getWorkspaceRelativeAssetPath(absolutePath: string) {
+  const normalizedAbsolutePath = path.resolve(absolutePath);
+
+  if (!isPathInsideWorkspace(normalizedAbsolutePath)) return null;
+
+  return path.relative(workspaceRootPath, normalizedAbsolutePath);
 }
 
 function buildEditorArgs(args: string[] | undefined, absolutePath: string) {
@@ -617,6 +635,69 @@ export const getWorkspaceSearchFilters = createServerFn({
   return Array.from(filters).sort((a, b) => a.localeCompare(b));
 });
 
+function isExternalUrl(value: string) {
+  return /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(value);
+}
+
+function splitAssetReference(value: string) {
+  const match = /^(?<pathname>[^?#]*)(?<search>\?[^#]*)?(?<hash>#.*)?$/.exec(
+    value,
+  );
+
+  return {
+    pathname: match?.groups?.pathname ?? value,
+    hash: match?.groups?.hash ?? "",
+  };
+}
+
+function decodeAssetPathname(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function workspaceAssetUrl(source: string, pageRelativePath: string) {
+  if (
+    !source ||
+    source.startsWith("#") ||
+    isExternalUrl(source)
+  ) {
+    return source;
+  }
+
+  const { pathname, hash } = splitAssetReference(source);
+  if (!pathname) return source;
+
+  const decodedPathname = decodeAssetPathname(pathname);
+  let assetRelativePath: string;
+
+  if (path.isAbsolute(decodedPathname)) {
+    const absoluteRelativePath = getWorkspaceRelativeAssetPath(decodedPathname);
+    if (!absoluteRelativePath) return source;
+
+    assetRelativePath = absoluteRelativePath.replaceAll("\\", "/");
+  } else {
+    const pageDirectory = path.posix.dirname(
+      pageRelativePath.replaceAll("\\", "/"),
+    );
+
+    assetRelativePath = path.posix.normalize(
+      path.posix.join(
+        pageDirectory === "." ? "" : pageDirectory,
+        decodedPathname,
+      ),
+    );
+  }
+
+  if (assetRelativePath.startsWith("../") || assetRelativePath === "..") {
+    return source;
+  }
+
+  return `/api/workspace-asset?path=${encodeURIComponent(assetRelativePath)}${hash}`;
+}
+
 function parseCodeMeta(info?: string) {
   const [language = "txt", ...meta] = (info ?? "").trim().split(/\s+/);
   const metaText = meta.join(" ");
@@ -698,7 +779,7 @@ function collectCodeTokens(tokens: MarkedTokenLike[]) {
   return output;
 }
 
-async function renderMarkdown(content: string) {
+async function renderMarkdown(content: string, pageRelativePath: string) {
   const [{ marked }, toc] = await Promise.all([
     import("marked"),
     Promise.resolve(getTableOfContents(content)),
@@ -739,6 +820,13 @@ async function renderMarkdown(content: string) {
     const id = slugger.slug(text);
 
     return `<h${depth} id="${escapeHtml(id)}">${html}</h${depth}>`;
+  };
+
+  renderer.image = ({ href, title, text }) => {
+    const src = workspaceAssetUrl(href, pageRelativePath);
+    const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
+
+    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${titleAttribute}>`;
   };
 
   return {
@@ -845,7 +933,10 @@ export const getWorkspaceMarkdownPage = createServerFn({ method: "GET" })
       readFile(absolutePath, "utf8"),
       stat(absolutePath),
     ]);
-    const { headingTitle, html, toc } = await renderMarkdown(content);
+    const { headingTitle, html, toc } = await renderMarkdown(
+      content,
+      relativePath,
+    );
 
     return {
       path: relativePath,

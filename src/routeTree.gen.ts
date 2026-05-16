@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LangRouteImport } from './routes/$lang'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LangIndexRouteImport } from './routes/$lang/index'
+import { Route as ApiWorkspaceAssetRouteImport } from './routes/api/workspace-asset'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiContentVersionRouteImport } from './routes/api/content-version'
 import { Route as LangSplatRouteImport } from './routes/$lang/$'
@@ -30,6 +31,11 @@ const LangIndexRoute = LangIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => LangRoute,
+} as any)
+const ApiWorkspaceAssetRoute = ApiWorkspaceAssetRouteImport.update({
+  id: '/api/workspace-asset',
+  path: '/api/workspace-asset',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
   id: '/api/search',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/$lang/$': typeof LangSplatRoute
   '/api/content-version': typeof ApiContentVersionRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/workspace-asset': typeof ApiWorkspaceAssetRoute
   '/$lang/': typeof LangIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/$lang/$': typeof LangSplatRoute
   '/api/content-version': typeof ApiContentVersionRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/workspace-asset': typeof ApiWorkspaceAssetRoute
   '/$lang': typeof LangIndexRoute
 }
 export interface FileRoutesById {
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/$lang/$': typeof LangSplatRoute
   '/api/content-version': typeof ApiContentVersionRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/workspace-asset': typeof ApiWorkspaceAssetRoute
   '/$lang/': typeof LangIndexRoute
 }
 export interface FileRouteTypes {
@@ -79,9 +88,16 @@ export interface FileRouteTypes {
     | '/$lang/$'
     | '/api/content-version'
     | '/api/search'
+    | '/api/workspace-asset'
     | '/$lang/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$lang/$' | '/api/content-version' | '/api/search' | '/$lang'
+  to:
+    | '/'
+    | '/$lang/$'
+    | '/api/content-version'
+    | '/api/search'
+    | '/api/workspace-asset'
+    | '/$lang'
   id:
     | '__root__'
     | '/'
@@ -89,6 +105,7 @@ export interface FileRouteTypes {
     | '/$lang/$'
     | '/api/content-version'
     | '/api/search'
+    | '/api/workspace-asset'
     | '/$lang/'
   fileRoutesById: FileRoutesById
 }
@@ -97,6 +114,7 @@ export interface RootRouteChildren {
   LangRoute: typeof LangRouteWithChildren
   ApiContentVersionRoute: typeof ApiContentVersionRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  ApiWorkspaceAssetRoute: typeof ApiWorkspaceAssetRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -121,6 +139,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lang/'
       preLoaderRoute: typeof LangIndexRouteImport
       parentRoute: typeof LangRoute
+    }
+    '/api/workspace-asset': {
+      id: '/api/workspace-asset'
+      path: '/api/workspace-asset'
+      fullPath: '/api/workspace-asset'
+      preLoaderRoute: typeof ApiWorkspaceAssetRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/search': {
       id: '/api/search'
@@ -163,6 +188,7 @@ const rootRouteChildren: RootRouteChildren = {
   LangRoute: LangRouteWithChildren,
   ApiContentVersionRoute: ApiContentVersionRoute,
   ApiSearchRoute: ApiSearchRoute,
+  ApiWorkspaceAssetRoute: ApiWorkspaceAssetRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
