@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { getWorkspaceAssetPath } from "@/lib/workspace-markdown";
+import { getWorkspaceAssetPath } from "@/lib/workspace-markdown.server";
 
 const contentTypes: Record<string, string> = {
   ".apng": "image/apng",

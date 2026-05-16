@@ -46,7 +46,7 @@ function globToRegex(pattern: string) {
     let segmentSource = "";
 
     for (let index = 0; index < segment.length; index += 1) {
-      const char = segment[index];
+      const char = segment[index] ?? "";
 
       if (char === "*") {
         segmentSource += "[^/]*";
@@ -79,7 +79,7 @@ function globToRegex(pattern: string) {
     }
 
     if (needsSlash) source += "/";
-    source += segmentToRegex(segment);
+    source += segmentToRegex(segment ?? "");
     needsSlash = true;
   }
 
