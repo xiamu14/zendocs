@@ -304,6 +304,8 @@ function buildTree(files: string[], lang: string): WorkspaceTreeRoot {
   }
 
   for (const [groupName, groupFiles] of groupedFiles) {
+    const groupChildren: WorkspaceTreeNode[] = [];
+
     tree.children.push({
       type: "separator",
       name: groupTitle(groupName),
@@ -312,12 +314,14 @@ function buildTree(files: string[], lang: string): WorkspaceTreeRoot {
     for (const relativePathWithinGroup of groupFiles) {
       const relativePath = path.join(groupName, relativePathWithinGroup);
 
-      insertIntoTree(tree.children, relativePathWithinGroup.split(path.sep), {
+      insertIntoTree(groupChildren, relativePathWithinGroup.split(path.sep), {
         type: "page",
         name: pageTitle(relativePath),
         url: pageUrl(lang, relativePath),
       });
     }
+
+    tree.children.push(...groupChildren);
   }
 
   return tree;
