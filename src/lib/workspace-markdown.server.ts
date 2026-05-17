@@ -688,6 +688,21 @@ function workspaceAssetUrl(source: string, pageRelativePath: string) {
   return `/api/workspace-asset?path=${encodeURIComponent(assetRelativePath)}${hash}`;
 }
 
+function workspaceHtmlUrl(source: string, pageRelativePath: string) {
+  if (!source || source.startsWith("#") || isExternalUrl(source)) {
+    return source;
+  }
+
+  const { pathname } = splitAssetReference(source);
+  const extension = path.posix.extname(pathname).toLocaleLowerCase();
+
+  if (!pathname || extension !== ".html") {
+    return source;
+  }
+
+  return workspaceAssetUrl(source, pageRelativePath);
+}
+
 function parseCodeMeta(info?: string) {
   const [language = "txt", ...meta] = (info ?? "").trim().split(/\s+/);
   const metaText = meta.join(" ");
@@ -817,6 +832,18 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
 
     return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${titleAttribute}>`;
+  };
+
+  renderer.link = ({ href, title, tokens }) => {
+    const url = workspaceHtmlUrl(href, pageRelativePath);
+    const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
+    const newWindowAttributes =
+      url !== href
+        ? ' target="_blank" rel="noopener noreferrer"'
+        : "";
+    const html = renderer.parser.parseInline(tokens);
+
+    return `<a href="${escapeHtml(url)}"${titleAttribute}${newWindowAttributes}>${html}</a>`;
   };
 
   return {
