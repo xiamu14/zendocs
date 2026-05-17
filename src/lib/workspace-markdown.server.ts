@@ -722,6 +722,10 @@ function withPreClass(html: string) {
   );
 }
 
+function renderMermaidBlock(code: string) {
+  return `<div class="zd-mermaid not-prose" data-mermaid-source="${escapeHtml(code)}"><pre>${escapeHtml(code)}</pre></div>`;
+}
+
 async function renderCodeBlock(code: string, info?: string) {
   const { language, title } = parseCodeMeta(info);
   let highlighted: string;
@@ -811,9 +815,18 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
   const slugger = new GithubSlugger();
   const renderer = new marked.Renderer();
 
-  renderer.code = (token) =>
-    highlightedBlocks.get(token.raw) ??
-    `<pre><code>${escapeHtml(token.text)}</code></pre>`;
+  renderer.code = (token) => {
+    const { language } = parseCodeMeta(token.lang);
+
+    if (language.toLowerCase() === "mermaid") {
+      return renderMermaidBlock(token.text);
+    }
+
+    return (
+      highlightedBlocks.get(token.raw) ??
+      `<pre><code>${escapeHtml(token.text)}</code></pre>`
+    );
+  };
 
   renderer.heading = ({ tokens, depth }) => {
     const text = tokens

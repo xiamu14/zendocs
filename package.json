@@ -26,6 +26,7 @@
     "fumadocs-core": "latest",
     "fumadocs-ui": "latest",
     "marked": "latest",
+    "mermaid": "^11.15.0",
     "react": "latest",
     "react-dom": "latest",
     "vite": "^7.2.7"

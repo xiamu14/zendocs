@@ -137,6 +137,25 @@
   color: var(--color-fd-foreground);
 }
 
+.prose .zd-mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+}
+
+.prose .zd-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.prose .zd-mermaid pre {
+  width: 100%;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
 .prose
   :where(li:has(> input[type="checkbox"])):not(
     :where([class~="not-prose"], [class~="not-prose"] *)
