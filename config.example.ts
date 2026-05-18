@@ -2,7 +2,7 @@ import type { ZendocsConfig } from "./src/lib/zendocs-config";
 
 const config = {
   // Directory to scan for Markdown files.
-  readDirectory: "/Users/ben/Documents/workspace",
+  readDirectory: "/Users/xxx/Documents/",
 
   // Local editor launched by the Open button on a document page.
   // If args do not include {file}, Zendocs appends the current Markdown file path.
