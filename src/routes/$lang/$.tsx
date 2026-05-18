@@ -32,6 +32,9 @@ function WorkspaceMarkdownPage() {
       tableOfContent={{
         style: "clerk",
       }}
+      breadcrumb={{
+        className: "zd-page-breadcrumb",
+      }}
     >
       <DocsTitle>{page.headingTitle}</DocsTitle>
       {page.description ? (
