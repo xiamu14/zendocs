@@ -5,6 +5,7 @@ import path from "node:path";
 import GithubSlugger from "github-slugger";
 import type { SortedResult } from "fumadocs-core/search";
 import { getTableOfContents } from "fumadocs-core/content/toc";
+import { frontmatter } from "fumadocs-core/content/md/frontmatter";
 import { highlightHast } from "fumadocs-core/highlight";
 import { toHtml } from "hast-util-to-html";
 import config from "../../config";
@@ -27,10 +28,13 @@ export type WorkspaceMarkdownPage = {
   path: string;
   name: string;
   title: string;
+  description: string | null;
+  metadata: WorkspaceMarkdownMetadata;
   headingTitle: string;
   url: string;
   lastUpdate: string;
   content: string;
+  markdown: string;
   html: string;
   toc: WorkspaceTocItem[];
   canOpenInEditor: boolean;
@@ -58,6 +62,11 @@ export type WorkspaceTocItem = {
   url: string;
   depth: number;
 };
+
+export type WorkspaceMarkdownMetadata = Record<
+  string,
+  string | number | boolean | string[] | number[] | boolean[] | null
+>;
 
 type WorkspaceTreeRoot = {
   $id: string;
@@ -107,6 +116,12 @@ type WorkspaceSearchCache = {
   signature: string;
   checkedAt: number;
   documents: WorkspaceSearchDocument[];
+};
+
+type WorkspaceMarkdownSummary = {
+  path: string;
+  name: string;
+  title: string;
 };
 
 const workspaceRootPath = path.resolve(workspaceRoot);
@@ -168,6 +183,80 @@ function pageUrl(lang: string, relativePath: string) {
 function pageTitle(relativePath: string) {
   const name = path.basename(relativePath, ".md");
   return name.split(/[-_]/).filter(Boolean).join(" ");
+}
+
+function normalizeMetadataValue(
+  value: unknown,
+): WorkspaceMarkdownMetadata[string] | undefined {
+  if (value === null) return null;
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (!Array.isArray(value)) return undefined;
+
+  const output = value.filter(
+    (item): item is string | number | boolean =>
+      typeof item === "string" ||
+      typeof item === "number" ||
+      typeof item === "boolean",
+  );
+
+  return output.length === value.length ? output : undefined;
+}
+
+function normalizeMetadata(value: unknown): WorkspaceMarkdownMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const output: WorkspaceMarkdownMetadata = {};
+
+  for (const [key, rawValue] of Object.entries(value)) {
+    const normalizedValue = normalizeMetadataValue(rawValue);
+    if (normalizedValue !== undefined) output[key] = normalizedValue;
+  }
+
+  return output;
+}
+
+function metadataString(
+  metadata: WorkspaceMarkdownMetadata,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value !== "string") continue;
+
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return null;
+}
+
+function parseMarkdownMetadata(content: string) {
+  try {
+    const parsed = frontmatter(content);
+    const metadata = normalizeMetadata(parsed.data);
+
+    return {
+      content: parsed.content,
+      metadata,
+      title: metadataString(metadata, ["title", "name"]),
+      description: metadataString(metadata, ["description"]),
+    };
+  } catch {
+    return {
+      content,
+      metadata: {},
+      title: null,
+      description: null,
+    };
+  }
 }
 
 function groupTitle(directoryName: string) {
@@ -260,6 +349,26 @@ async function getMarkdownPaths() {
   return files.sort((a, b) => a.localeCompare(b));
 }
 
+async function getMarkdownSummaries(): Promise<WorkspaceMarkdownSummary[]> {
+  const files = await getMarkdownPaths();
+
+  return Promise.all(
+    files.map(async (relativePath) => {
+      const rawContent = await readFile(
+        path.join(workspaceRoot, relativePath),
+        "utf8",
+      );
+      const { title } = parseMarkdownMetadata(rawContent);
+
+      return {
+        path: relativePath,
+        name: path.basename(relativePath),
+        title: title ?? pageTitle(relativePath),
+      };
+    }),
+  );
+}
+
 function insertIntoTree(
   children: WorkspaceTreeNode[],
   parts: string[],
@@ -292,22 +401,25 @@ function insertIntoTree(
   insertIntoTree(folder.children, rest, page);
 }
 
-function buildTree(files: string[], lang: string): WorkspaceTreeRoot {
+function buildTree(
+  pages: WorkspaceMarkdownSummary[],
+  lang: string,
+): WorkspaceTreeRoot {
   const tree: WorkspaceTreeRoot = {
     $id: `workspace:${lang}`,
     name: "Zendocs",
     children: [],
   };
-  const groupedFiles = new Map<string, string[]>();
+  const groupedPages = new Map<string, WorkspaceMarkdownSummary[]>();
 
-  for (const relativePath of files) {
-    const parts = relativePath.split(path.sep);
+  for (const page of pages) {
+    const parts = page.path.split(path.sep);
 
     if (parts.length === 1) {
       insertIntoTree(tree.children, parts, {
         type: "page",
-        name: pageTitle(relativePath),
-        url: pageUrl(lang, relativePath),
+        name: page.title,
+        url: pageUrl(lang, page.path),
       });
       continue;
     }
@@ -315,12 +427,12 @@ function buildTree(files: string[], lang: string): WorkspaceTreeRoot {
     const [groupName, ...rest] = parts;
     if (!groupName) continue;
 
-    const groupFiles = groupedFiles.get(groupName) ?? [];
-    groupFiles.push(rest.join(path.sep));
-    groupedFiles.set(groupName, groupFiles);
+    const groupPages = groupedPages.get(groupName) ?? [];
+    groupPages.push(page);
+    groupedPages.set(groupName, groupPages);
   }
 
-  for (const [groupName, groupFiles] of groupedFiles) {
+  for (const [groupName, groupPages] of groupedPages) {
     const groupChildren: WorkspaceTreeNode[] = [];
 
     tree.children.push({
@@ -328,13 +440,13 @@ function buildTree(files: string[], lang: string): WorkspaceTreeRoot {
       name: groupTitle(groupName),
     });
 
-    for (const relativePathWithinGroup of groupFiles) {
-      const relativePath = path.join(groupName, relativePathWithinGroup);
+    for (const page of groupPages) {
+      const [, ...rest] = page.path.split(path.sep);
 
-      insertIntoTree(groupChildren, relativePathWithinGroup.split(path.sep), {
+      insertIntoTree(groupChildren, rest, {
         type: "page",
-        name: pageTitle(relativePath),
-        url: pageUrl(lang, relativePath),
+        name: page.title,
+        url: pageUrl(lang, page.path),
       });
     }
 
@@ -460,18 +572,22 @@ async function getWorkspaceSearchDocuments(lang: string) {
 
   const documents = await Promise.all(
     fileStats.map(async ({ relativePath }) => {
-      const content = await readFile(
+      const rawContent = await readFile(
         path.join(workspaceRoot, relativePath),
         "utf8",
       );
+      const { content, title } = parseMarkdownMetadata(rawContent);
       const { searchableContent, headings } = await parseSearchContent(content);
+      const pageHeading = title ?? pageTitle(relativePath);
 
       return {
         path: relativePath,
-        title: pageTitle(relativePath),
+        title: pageHeading,
         url: pageUrl(lang, relativePath),
         content,
-        searchableContent,
+        searchableContent: normalizeSearchText(
+          `${pageHeading} ${searchableContent}`,
+        ),
         breadcrumbs: pageBreadcrumbs(relativePath),
         headings,
       };
@@ -794,12 +910,21 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
     Promise.resolve(getTableOfContents(content)),
   ]);
   const tokens = marked.lexer(content) as MarkedTokenLike[];
-  const firstToken = tokens[0];
+  const firstContentTokenIndex = tokens.findIndex(
+    (token) => token.type !== "space",
+  );
+  const firstToken =
+    firstContentTokenIndex === -1 ? undefined : tokens[firstContentTokenIndex];
   const headingTitle =
     firstToken?.type === "heading" && firstToken.depth === 1
       ? tokenText(firstToken.tokens) || firstToken.text || ""
       : "";
-  const bodyTokens = headingTitle ? tokens.slice(1) : tokens;
+  const bodyTokens = headingTitle
+    ? [
+        ...tokens.slice(0, firstContentTokenIndex),
+        ...tokens.slice(firstContentTokenIndex + 1),
+      ]
+    : tokens;
   const highlightedBlocks = new Map<string, string>();
   const codeTokens = collectCodeTokens(bodyTokens);
 
@@ -873,17 +998,17 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
 export async function getWorkspaceNavigationData(
   data: { lang: string },
 ): Promise<WorkspaceNavigation> {
-    const files = await getMarkdownPaths();
-    const pages = files.map((relativePath) => ({
-      path: relativePath,
-      name: path.basename(relativePath),
-      title: pageTitle(relativePath),
-      url: pageUrl(data.lang, relativePath),
+    const summaries = await getMarkdownSummaries();
+    const pages = summaries.map((summary) => ({
+      path: summary.path,
+      name: summary.name,
+      title: summary.title,
+      url: pageUrl(data.lang, summary.path),
     }));
 
     return {
       root: workspaceRoot,
-      tree: buildTree(files, data.lang),
+      tree: buildTree(summaries, data.lang),
       pages,
       firstUrl: pages[0]?.url ?? null,
     };
@@ -959,10 +1084,12 @@ export async function getWorkspaceMarkdownPageData(
     if (!relativePath) return null;
 
     const absolutePath = path.join(workspaceRoot, relativePath);
-    const [content, fileInfo] = await Promise.all([
+    const [rawContent, fileInfo] = await Promise.all([
       readFile(absolutePath, "utf8"),
       stat(absolutePath),
     ]);
+    const { content, metadata, title, description } =
+      parseMarkdownMetadata(rawContent);
     const { headingTitle, html, toc } = await renderMarkdown(
       content,
       relativePath,
@@ -971,11 +1098,14 @@ export async function getWorkspaceMarkdownPageData(
     return {
       path: relativePath,
       name: path.basename(relativePath),
-      title: pageTitle(relativePath),
-      headingTitle: headingTitle || pageTitle(relativePath),
+      title: title ?? pageTitle(relativePath),
+      description,
+      metadata,
+      headingTitle: headingTitle || title || pageTitle(relativePath),
       url: pageUrl(data.lang, relativePath),
       lastUpdate: fileInfo.mtime.toISOString(),
-      content,
+      content: rawContent,
+      markdown: content,
       html,
       toc,
       canOpenInEditor: canOpenWorkspaceMarkdownInEditor(),

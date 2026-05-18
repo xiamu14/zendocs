@@ -14,8 +14,15 @@
   color: oklch(55% 0.15 64) !important;
 }
 
+.zd-page-description {
+  margin: 0.25rem !important;
+  margin-bottom: 0.45rem !important;
+  line-height: 1.65 !important;
+}
+
 .zd-page-actions {
-  margin-top: 1rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
   border-bottom: 1px solid var(--color-fd-border);
 }
 
@@ -24,7 +31,11 @@
   flex-flow: row wrap;
   align-items: center;
   gap: 0.75rem;
-  padding-bottom: 1.25rem;
+  padding-bottom: 2rem;
+}
+
+.zd-page-actions + .prose > :first-child {
+  margin-top: 0;
 }
 
 .zd-page-action-button {

@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { DocsBody, DocsPage, DocsTitle } from "fumadocs-ui/page";
+import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page";
 import { MermaidRenderer } from "@/components/mermaid-renderer";
 import { MarkdownPageActions } from "@/components/open-editor-button";
 import { getWorkspaceMarkdownPage } from "@/lib/workspace-markdown";
@@ -34,6 +34,11 @@ function WorkspaceMarkdownPage() {
       }}
     >
       <DocsTitle>{page.headingTitle}</DocsTitle>
+      {page.description ? (
+        <DocsDescription className="zd-page-description">
+          {page.description}
+        </DocsDescription>
+      ) : null}
       <MarkdownPageActions
         canOpenInEditor={page.canOpenInEditor}
         editorUrl={page.editorUrl}
