@@ -133,7 +133,10 @@ function isRunningInDocker() {
 }
 
 function canOpenWorkspaceMarkdownInEditor() {
-  return Boolean(config.editor) && (!isRunningInDocker() || Boolean(config.editor.url));
+  return (
+    Boolean(config.editor) &&
+    (!isRunningInDocker() || Boolean(config.editor.url))
+  );
 }
 
 function buildEditorUrl(absolutePath: string) {
@@ -765,11 +768,7 @@ function decodeAssetPathname(value: string) {
 }
 
 function workspaceAssetUrl(source: string, pageRelativePath: string) {
-  if (
-    !source ||
-    source.startsWith("#") ||
-    isExternalUrl(source)
-  ) {
+  if (!source || source.startsWith("#") || isExternalUrl(source)) {
     return source;
   }
 
@@ -976,9 +975,7 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
     const url = workspaceHtmlUrl(href, pageRelativePath);
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
     const newWindowAttributes =
-      url !== href
-        ? ' target="_blank" rel="noopener noreferrer"'
-        : "";
+      url !== href ? ' target="_blank" rel="noopener noreferrer"' : "";
     const html = renderer.parser.parseInline(tokens);
 
     return `<a href="${escapeHtml(url)}"${titleAttribute}${newWindowAttributes}>${html}</a>`;
@@ -995,120 +992,121 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
   };
 }
 
-export async function getWorkspaceNavigationData(
-  data: { lang: string },
-): Promise<WorkspaceNavigation> {
-    const summaries = await getMarkdownSummaries();
-    const pages = summaries.map((summary) => ({
-      path: summary.path,
-      name: summary.name,
-      title: summary.title,
-      url: pageUrl(data.lang, summary.path),
-    }));
+export async function getWorkspaceNavigationData(data: {
+  lang: string;
+}): Promise<WorkspaceNavigation> {
+  const summaries = await getMarkdownSummaries();
+  const pages = summaries.map((summary) => ({
+    path: summary.path,
+    name: summary.name,
+    title: summary.title,
+    url: pageUrl(data.lang, summary.path),
+  }));
 
+  return {
+    root: workspaceRoot,
+    tree: buildTree(summaries, data.lang),
+    pages,
+    firstUrl: pages[0]?.url ?? null,
+  };
+}
+
+export async function openWorkspaceMarkdownInEditorData(data: {
+  pagePath: string;
+}): Promise<OpenWorkspaceMarkdownInEditorResult> {
+  const editor = config.editor;
+
+  if (isRunningInDocker()) {
     return {
-      root: workspaceRoot,
-      tree: buildTree(summaries, data.lang),
-      pages,
-      firstUrl: pages[0]?.url ?? null,
+      ok: false,
+      message: "Editor is not available in Docker.",
     };
-}
+  }
 
-export async function openWorkspaceMarkdownInEditorData(
-  data: { pagePath: string },
-): Promise<OpenWorkspaceMarkdownInEditorResult> {
-    const editor = config.editor;
+  if (!editor) {
+    return {
+      ok: false,
+      message: "Editor is not configured.",
+    };
+  }
 
-    if (isRunningInDocker()) {
-      return {
-        ok: false,
-        message: "Editor is not available in Docker.",
-      };
-    }
+  const normalizedPath = decodeURIComponent(data.pagePath);
+  const files = await getMarkdownPaths();
+  const relativePath = files.find((file) => file === normalizedPath);
 
-    if (!editor) {
-      return {
-        ok: false,
-        message: "Editor is not configured.",
-      };
-    }
+  if (!relativePath) {
+    return {
+      ok: false,
+      message: "File is not available in this workspace.",
+    };
+  }
 
-    const normalizedPath = decodeURIComponent(data.pagePath);
-    const files = await getMarkdownPaths();
-    const relativePath = files.find((file) => file === normalizedPath);
+  const absolutePath = path.resolve(workspaceRoot, relativePath);
 
-    if (!relativePath) {
-      return {
-        ok: false,
-        message: "File is not available in this workspace.",
-      };
-    }
+  if (!isPathInsideWorkspace(absolutePath)) {
+    return {
+      ok: false,
+      message: "File is outside the configured workspace.",
+    };
+  }
 
-    const absolutePath = path.resolve(workspaceRoot, relativePath);
-
-    if (!isPathInsideWorkspace(absolutePath)) {
-      return {
-        ok: false,
-        message: "File is outside the configured workspace.",
-      };
-    }
-
-    try {
-      const child = spawn(
-        editor.command,
-        buildEditorArgs(editor.args, absolutePath),
-        {
-          detached: true,
-          stdio: "ignore",
-        },
-      );
-
-      child.unref();
-
-      return { ok: true };
-    } catch {
-      return {
-        ok: false,
-        message: "Could not open the configured editor.",
-      };
-    }
-}
-
-export async function getWorkspaceMarkdownPageData(
-  data: { lang: string; pagePath: string },
-): Promise<WorkspaceMarkdownPage | null> {
-    const normalizedPath = decodeURIComponent(data.pagePath);
-    const files = await getMarkdownPaths();
-    const relativePath = files.find((file) => file === normalizedPath);
-
-    if (!relativePath) return null;
-
-    const absolutePath = path.join(workspaceRoot, relativePath);
-    const [rawContent, fileInfo] = await Promise.all([
-      readFile(absolutePath, "utf8"),
-      stat(absolutePath),
-    ]);
-    const { content, metadata, title, description } =
-      parseMarkdownMetadata(rawContent);
-    const { headingTitle, html, toc } = await renderMarkdown(
-      content,
-      relativePath,
+  try {
+    const child = spawn(
+      editor.command,
+      buildEditorArgs(editor.args, absolutePath),
+      {
+        detached: true,
+        stdio: "ignore",
+      },
     );
 
+    child.unref();
+
+    return { ok: true };
+  } catch {
     return {
-      path: relativePath,
-      name: path.basename(relativePath),
-      title: title ?? pageTitle(relativePath),
-      description,
-      metadata,
-      headingTitle: headingTitle || title || pageTitle(relativePath),
-      url: pageUrl(data.lang, relativePath),
-      lastUpdate: fileInfo.mtime.toISOString(),
-      content: rawContent,
-      markdown: content,
-      html,
-      toc,
-      canOpenInEditor: canOpenWorkspaceMarkdownInEditor(),
-      editorUrl: buildEditorUrl(absolutePath),
+      ok: false,
+      message: "Could not open the configured editor.",
     };
+  }
+}
+
+export async function getWorkspaceMarkdownPageData(data: {
+  lang: string;
+  pagePath: string;
+}): Promise<WorkspaceMarkdownPage | null> {
+  const normalizedPath = decodeURIComponent(data.pagePath);
+  const files = await getMarkdownPaths();
+  const relativePath = files.find((file) => file === normalizedPath);
+
+  if (!relativePath) return null;
+
+  const absolutePath = path.join(workspaceRoot, relativePath);
+  const [rawContent, fileInfo] = await Promise.all([
+    readFile(absolutePath, "utf8"),
+    stat(absolutePath),
+  ]);
+  const { content, metadata, title, description } =
+    parseMarkdownMetadata(rawContent);
+  const { headingTitle, html, toc } = await renderMarkdown(
+    content,
+    relativePath,
+  );
+
+  return {
+    path: relativePath,
+    name: path.basename(relativePath),
+    title: title ?? pageTitle(relativePath),
+    description,
+    metadata,
+    headingTitle: headingTitle || title || pageTitle(relativePath),
+    url: pageUrl(data.lang, relativePath),
+    lastUpdate: fileInfo.mtime.toISOString(),
+    content: rawContent,
+    markdown: content,
+    html,
+    toc,
+    canOpenInEditor: canOpenWorkspaceMarkdownInEditor(),
+    editorUrl: buildEditorUrl(absolutePath),
+  };
 }
