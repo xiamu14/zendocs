@@ -748,6 +748,10 @@ function isExternalUrl(value: string) {
   return /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(value);
 }
 
+function isExternalWebUrl(value: string) {
+  return /^(?:https?:)?\/\//i.test(value);
+}
+
 function splitAssetReference(value: string) {
   const match = /^(?<pathname>[^?#]*)(?<search>\?[^#]*)?(?<hash>#.*)?$/.exec(
     value,
@@ -974,8 +978,9 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
   renderer.link = ({ href, title, tokens }) => {
     const url = workspaceHtmlUrl(href, pageRelativePath);
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
+    const shouldOpenInNewWindow = isExternalWebUrl(href) || url !== href;
     const newWindowAttributes =
-      url !== href ? ' target="_blank" rel="noopener noreferrer"' : "";
+      shouldOpenInNewWindow ? ' target="_blank" rel="noopener noreferrer"' : "";
     const html = renderer.parser.parseInline(tokens);
 
     return `<a href="${escapeHtml(url)}"${titleAttribute}${newWindowAttributes}>${html}</a>`;
