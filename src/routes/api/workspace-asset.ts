@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/workspace-asset")({
           return new Response("Missing asset path.", { status: 400 });
         }
 
-        const absolutePath = getWorkspaceAssetPath(relativePath);
+        const absolutePath = await getWorkspaceAssetPath(relativePath);
         if (!absolutePath) {
           return new Response("Asset is outside the workspace.", {
             status: 403,

@@ -9,5 +9,6 @@ services:
     ports:
       - "${ZENDOCS_PORT:-1356}:3000"
     volumes:
+      - "./config.ts:/app/config.ts:ro"
       - "/Users/ben/Documents/workspace:/Users/ben/Documents/workspace:ro"
     restart: unless-stopped

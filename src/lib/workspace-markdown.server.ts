@@ -8,8 +8,9 @@ import { getTableOfContents } from "fumadocs-core/content/toc";
 import { frontmatter } from "fumadocs-core/content/md/frontmatter";
 import { highlightHast } from "fumadocs-core/highlight";
 import { toHtml } from "hast-util-to-html";
-import config from "../../config";
+import { getZendocsConfig } from "./config-runtime.server";
 import { matchesAnyRule } from "./zendocs-config";
+import type { ZendocsConfig } from "./zendocs-config";
 
 type MarkedTokenLike = {
   type?: string;
@@ -20,9 +21,6 @@ type MarkedTokenLike = {
   tokens?: MarkedTokenLike[];
   items?: Array<{ tokens?: MarkedTokenLike[] }>;
 };
-
-const workspaceRoot = config.readDirectory;
-const maxFileSizeBytes = config.maxFileSizeBytes ?? 1024 * 1024;
 
 export type WorkspaceMarkdownPage = {
   path: string;
@@ -124,22 +122,44 @@ type WorkspaceMarkdownSummary = {
   title: string;
 };
 
-const workspaceRootPath = path.resolve(workspaceRoot);
 const searchCacheTtlMs = 2000;
 let workspaceSearchCache: WorkspaceSearchCache | null = null;
+
+type WorkspaceContext = {
+  config: ZendocsConfig;
+  maxFileSizeBytes: number;
+  workspaceRoot: string;
+  workspaceRootPath: string;
+};
+
+async function getWorkspaceContext(): Promise<WorkspaceContext> {
+  const config = await getZendocsConfig();
+  const workspaceRoot = config.readDirectory;
+
+  return {
+    config,
+    maxFileSizeBytes: config.maxFileSizeBytes ?? 1024 * 1024,
+    workspaceRoot,
+    workspaceRootPath: path.resolve(workspaceRoot),
+  };
+}
+
+export function resetWorkspaceMarkdownCaches() {
+  workspaceSearchCache = null;
+}
 
 function isRunningInDocker() {
   return existsSync("/.dockerenv");
 }
 
-function canOpenWorkspaceMarkdownInEditor() {
-  return (
-    Boolean(config.editor) &&
-    (!isRunningInDocker() || Boolean(config.editor.url))
-  );
+function canOpenWorkspaceMarkdownInEditor(config: ZendocsConfig) {
+  const editor = config.editor;
+  if (!editor) return false;
+
+  return !isRunningInDocker() || Boolean(editor.url);
 }
 
-function buildEditorUrl(absolutePath: string) {
+function buildEditorUrl(config: ZendocsConfig, absolutePath: string) {
   const editor = config.editor;
   if (!editor || !editor.url) return null;
 
@@ -151,7 +171,11 @@ function buildEditorUrl(absolutePath: string) {
   return editor.url.replaceAll("{file}", encodedPath);
 }
 
-function shouldSkipFile(fileName: string, relativePath: string) {
+function shouldSkipFile(
+  config: ZendocsConfig,
+  fileName: string,
+  relativePath: string,
+) {
   if (!fileName.toLowerCase().endsWith(".md")) return true;
 
   const stem = fileName.slice(0, -".md".length);
@@ -165,7 +189,11 @@ function shouldSkipFile(fileName: string, relativePath: string) {
   ]);
 }
 
-function shouldSkipDirectory(directoryName: string, relativePath: string) {
+function shouldSkipDirectory(
+  config: ZendocsConfig,
+  directoryName: string,
+  relativePath: string,
+) {
   return matchesAnyRule(config.filterDirectories, [
     directoryName,
     relativePath,
@@ -210,7 +238,21 @@ function normalizeMetadataValue(
       typeof item === "boolean",
   );
 
-  return output.length === value.length ? output : undefined;
+  if (output.length !== value.length) return undefined;
+
+  if (output.every((item): item is string => typeof item === "string")) {
+    return output;
+  }
+
+  if (output.every((item): item is number => typeof item === "number")) {
+    return output;
+  }
+
+  if (output.every((item): item is boolean => typeof item === "boolean")) {
+    return output;
+  }
+
+  return undefined;
 }
 
 function normalizeMetadata(value: unknown): WorkspaceMarkdownMetadata {
@@ -273,8 +315,8 @@ function pageBreadcrumbs(relativePath: string) {
   return directory.split(path.sep).filter(Boolean);
 }
 
-function isPathInsideWorkspace(absolutePath: string) {
-  const relativePath = path.relative(workspaceRootPath, absolutePath);
+function isPathInsideWorkspace(context: WorkspaceContext, absolutePath: string) {
+  const relativePath = path.relative(context.workspaceRootPath, absolutePath);
 
   return (
     (relativePath === "" || Boolean(relativePath)) &&
@@ -283,21 +325,25 @@ function isPathInsideWorkspace(absolutePath: string) {
   );
 }
 
-export function getWorkspaceAssetPath(relativePath: string) {
+export async function getWorkspaceAssetPath(relativePath: string) {
+  const context = await getWorkspaceContext();
   const normalizedPath = path.normalize(relativePath);
-  const absolutePath = path.resolve(workspaceRootPath, normalizedPath);
+  const absolutePath = path.resolve(context.workspaceRootPath, normalizedPath);
 
-  if (!isPathInsideWorkspace(absolutePath)) return null;
+  if (!isPathInsideWorkspace(context, absolutePath)) return null;
 
   return absolutePath;
 }
 
-function getWorkspaceRelativeAssetPath(absolutePath: string) {
+function getWorkspaceRelativeAssetPath(
+  context: WorkspaceContext,
+  absolutePath: string,
+) {
   const normalizedAbsolutePath = path.resolve(absolutePath);
 
-  if (!isPathInsideWorkspace(normalizedAbsolutePath)) return null;
+  if (!isPathInsideWorkspace(context, normalizedAbsolutePath)) return null;
 
-  return path.relative(workspaceRootPath, normalizedAbsolutePath);
+  return path.relative(context.workspaceRootPath, normalizedAbsolutePath);
 }
 
 function buildEditorArgs(args: string[] | undefined, absolutePath: string) {
@@ -315,6 +361,7 @@ function buildEditorArgs(args: string[] | undefined, absolutePath: string) {
 }
 
 async function walkMarkdownFiles(
+  context: WorkspaceContext,
   directory: string,
   root: string,
   files: string[],
@@ -329,36 +376,44 @@ async function walkMarkdownFiles(
       const relativePath = path.relative(root, absolutePath);
 
       if (entry.isDirectory()) {
-        if (shouldSkipDirectory(entry.name, relativePath)) return;
-        await walkMarkdownFiles(absolutePath, root, files);
+        if (shouldSkipDirectory(context.config, entry.name, relativePath)) {
+          return;
+        }
+        await walkMarkdownFiles(context, absolutePath, root, files);
         return;
       }
 
-      if (!entry.isFile() || shouldSkipFile(entry.name, relativePath)) return;
+      if (
+        !entry.isFile() ||
+        shouldSkipFile(context.config, entry.name, relativePath)
+      ) {
+        return;
+      }
 
       const info = await stat(absolutePath);
-      if (info.size > maxFileSizeBytes) return;
+      if (info.size > context.maxFileSizeBytes) return;
 
       files.push(relativePath);
     }),
   );
 }
 
-async function getMarkdownPaths() {
+async function getMarkdownPaths(context: WorkspaceContext) {
   const files: string[] = [];
 
-  await walkMarkdownFiles(workspaceRoot, workspaceRoot, files);
+  await walkMarkdownFiles(context, context.workspaceRoot, context.workspaceRoot, files);
 
   return files.sort((a, b) => a.localeCompare(b));
 }
 
 async function getMarkdownSummaries(): Promise<WorkspaceMarkdownSummary[]> {
-  const files = await getMarkdownPaths();
+  const context = await getWorkspaceContext();
+  const files = await getMarkdownPaths(context);
 
   return Promise.all(
     files.map(async (relativePath) => {
       const rawContent = await readFile(
-        path.join(workspaceRoot, relativePath),
+        path.join(context.workspaceRoot, relativePath),
         "utf8",
       );
       const { title } = parseMarkdownMetadata(rawContent);
@@ -532,6 +587,7 @@ async function parseSearchContent(content: string) {
 }
 
 async function getWorkspaceSearchDocuments(lang: string) {
+  const context = await getWorkspaceContext();
   const now = Date.now();
   if (
     workspaceSearchCache &&
@@ -547,11 +603,11 @@ async function getWorkspaceSearchDocuments(lang: string) {
     }));
   }
 
-  const files = await getMarkdownPaths();
+  const files = await getMarkdownPaths(context);
   const fileStats = await Promise.all(
     files.map(async (relativePath) => ({
       relativePath,
-      info: await stat(path.join(workspaceRoot, relativePath)),
+      info: await stat(path.join(context.workspaceRoot, relativePath)),
     })),
   );
   const signature = fileStats
@@ -576,7 +632,7 @@ async function getWorkspaceSearchDocuments(lang: string) {
   const documents = await Promise.all(
     fileStats.map(async ({ relativePath }) => {
       const rawContent = await readFile(
-        path.join(workspaceRoot, relativePath),
+        path.join(context.workspaceRoot, relativePath),
         "utf8",
       );
       const { content, title } = parseMarkdownMetadata(rawContent);
@@ -733,7 +789,8 @@ export async function searchWorkspaceMarkdown({
 }
 
 export async function getWorkspaceSearchFilters() {
-  const files = await getMarkdownPaths();
+  const context = await getWorkspaceContext();
+  const files = await getMarkdownPaths(context);
   const filters = new Set<string>();
 
   for (const relativePath of files) {
@@ -771,7 +828,11 @@ function decodeAssetPathname(value: string) {
   }
 }
 
-function workspaceAssetUrl(source: string, pageRelativePath: string) {
+function workspaceAssetUrl(
+  context: WorkspaceContext,
+  source: string,
+  pageRelativePath: string,
+) {
   if (!source || source.startsWith("#") || isExternalUrl(source)) {
     return source;
   }
@@ -783,7 +844,10 @@ function workspaceAssetUrl(source: string, pageRelativePath: string) {
   let assetRelativePath: string;
 
   if (path.isAbsolute(decodedPathname)) {
-    const absoluteRelativePath = getWorkspaceRelativeAssetPath(decodedPathname);
+    const absoluteRelativePath = getWorkspaceRelativeAssetPath(
+      context,
+      decodedPathname,
+    );
     if (!absoluteRelativePath) return source;
 
     assetRelativePath = absoluteRelativePath.replaceAll("\\", "/");
@@ -807,7 +871,11 @@ function workspaceAssetUrl(source: string, pageRelativePath: string) {
   return `/api/workspace-asset?path=${encodeURIComponent(assetRelativePath)}${hash}`;
 }
 
-function workspaceHtmlUrl(source: string, pageRelativePath: string) {
+function workspaceHtmlUrl(
+  context: WorkspaceContext,
+  source: string,
+  pageRelativePath: string,
+) {
   if (!source || source.startsWith("#") || isExternalUrl(source)) {
     return source;
   }
@@ -819,7 +887,7 @@ function workspaceHtmlUrl(source: string, pageRelativePath: string) {
     return source;
   }
 
-  return workspaceAssetUrl(source, pageRelativePath);
+  return workspaceAssetUrl(context, source, pageRelativePath);
 }
 
 function parseCodeMeta(info?: string) {
@@ -907,7 +975,11 @@ function collectCodeTokens(tokens: MarkedTokenLike[]) {
   return output;
 }
 
-async function renderMarkdown(content: string, pageRelativePath: string) {
+async function renderMarkdown(
+  context: WorkspaceContext,
+  content: string,
+  pageRelativePath: string,
+) {
   const [{ marked }, toc] = await Promise.all([
     import("marked"),
     Promise.resolve(getTableOfContents(content)),
@@ -969,14 +1041,14 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
   };
 
   renderer.image = ({ href, title, text }) => {
-    const src = workspaceAssetUrl(href, pageRelativePath);
+    const src = workspaceAssetUrl(context, href, pageRelativePath);
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
 
     return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${titleAttribute}>`;
   };
 
   renderer.link = ({ href, title, tokens }) => {
-    const url = workspaceHtmlUrl(href, pageRelativePath);
+    const url = workspaceHtmlUrl(context, href, pageRelativePath);
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
     const shouldOpenInNewWindow = isExternalWebUrl(href) || url !== href;
     const newWindowAttributes =
@@ -1000,6 +1072,7 @@ async function renderMarkdown(content: string, pageRelativePath: string) {
 export async function getWorkspaceNavigationData(data: {
   lang: string;
 }): Promise<WorkspaceNavigation> {
+  const context = await getWorkspaceContext();
   const summaries = await getMarkdownSummaries();
   const pages = summaries.map((summary) => ({
     path: summary.path,
@@ -1009,7 +1082,7 @@ export async function getWorkspaceNavigationData(data: {
   }));
 
   return {
-    root: workspaceRoot,
+    root: context.workspaceRoot,
     tree: buildTree(summaries, data.lang),
     pages,
     firstUrl: pages[0]?.url ?? null,
@@ -1019,7 +1092,8 @@ export async function getWorkspaceNavigationData(data: {
 export async function openWorkspaceMarkdownInEditorData(data: {
   pagePath: string;
 }): Promise<OpenWorkspaceMarkdownInEditorResult> {
-  const editor = config.editor;
+  const context = await getWorkspaceContext();
+  const editor = context.config.editor;
 
   if (isRunningInDocker()) {
     return {
@@ -1036,7 +1110,7 @@ export async function openWorkspaceMarkdownInEditorData(data: {
   }
 
   const normalizedPath = decodeURIComponent(data.pagePath);
-  const files = await getMarkdownPaths();
+  const files = await getMarkdownPaths(context);
   const relativePath = files.find((file) => file === normalizedPath);
 
   if (!relativePath) {
@@ -1046,9 +1120,9 @@ export async function openWorkspaceMarkdownInEditorData(data: {
     };
   }
 
-  const absolutePath = path.resolve(workspaceRoot, relativePath);
+  const absolutePath = path.resolve(context.workspaceRoot, relativePath);
 
-  if (!isPathInsideWorkspace(absolutePath)) {
+  if (!isPathInsideWorkspace(context, absolutePath)) {
     return {
       ok: false,
       message: "File is outside the configured workspace.",
@@ -1080,13 +1154,14 @@ export async function getWorkspaceMarkdownPageData(data: {
   lang: string;
   pagePath: string;
 }): Promise<WorkspaceMarkdownPage | null> {
+  const context = await getWorkspaceContext();
   const normalizedPath = decodeURIComponent(data.pagePath);
-  const files = await getMarkdownPaths();
+  const files = await getMarkdownPaths(context);
   const relativePath = files.find((file) => file === normalizedPath);
 
   if (!relativePath) return null;
 
-  const absolutePath = path.join(workspaceRoot, relativePath);
+  const absolutePath = path.join(context.workspaceRoot, relativePath);
   const [rawContent, fileInfo] = await Promise.all([
     readFile(absolutePath, "utf8"),
     stat(absolutePath),
@@ -1094,6 +1169,7 @@ export async function getWorkspaceMarkdownPageData(data: {
   const { content, metadata, title, description } =
     parseMarkdownMetadata(rawContent);
   const { headingTitle, html, toc } = await renderMarkdown(
+    context,
     content,
     relativePath,
   );
@@ -1111,7 +1187,7 @@ export async function getWorkspaceMarkdownPageData(data: {
     markdown: content,
     html,
     toc,
-    canOpenInEditor: canOpenWorkspaceMarkdownInEditor(),
-    editorUrl: buildEditorUrl(absolutePath),
+    canOpenInEditor: canOpenWorkspaceMarkdownInEditor(context.config),
+    editorUrl: buildEditorUrl(context.config, absolutePath),
   };
 }

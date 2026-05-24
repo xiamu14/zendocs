@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 
 type ContentVersionResponse = {
+  configVersion: string
   version: string
 }
 
 export function ContentHotReload() {
   useEffect(() => {
     let currentVersion: string | null = null
+    let currentConfigVersion: string | null = null
     let disposed = false
 
     async function checkContentVersion() {
@@ -21,10 +23,17 @@ export function ContentHotReload() {
 
         if (currentVersion === null) {
           currentVersion = data.version
+          currentConfigVersion = data.configVersion
           return
         }
 
         if (data.version !== currentVersion) {
+          if (data.configVersion !== currentConfigVersion) {
+            const [, lang] = window.location.pathname.split('/')
+            window.location.assign(lang ? `/${lang}` : '/')
+            return
+          }
+
           window.location.reload()
         }
       } catch {
