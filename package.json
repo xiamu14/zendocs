@@ -8,10 +8,11 @@
     "build": "vite build",
     "serve": "NODE_ENV=production bun scripts/serve.mjs",
     "start": "bun run serve",
-    "docker:up": "docker compose up -d --build --force-recreate && PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless alias zendocs ${ZENDOCS_PORT:-1356} --force",
-    "docker:alias": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless alias zendocs ${ZENDOCS_PORT:-1356} --force",
-    "docker:down": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless alias --remove zendocs || true; docker compose down",
-    "docker:logs": "docker compose logs -f zendocs"
+    "docker:up": "bun scripts/docker.mjs up",
+    "docker:alias": "bun scripts/docker.mjs alias",
+    "docker:down": "bun scripts/docker.mjs down",
+    "docker:logs": "bun scripts/docker.mjs logs",
+    "docker:config": "bun scripts/docker.mjs config"
   },
   "portless": {
     "name": "zendocs",
