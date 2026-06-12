@@ -3,7 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force",
+    "dev": "PORTLESS_LAN=1 PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force",
     "dev:app": "vite --host 127.0.0.1 --port ${PORT:-3140}",
     "build": "vite build",
     "serve": "NODE_ENV=production bun scripts/serve.mjs",

@@ -168,7 +168,7 @@ bun run dev
 默认会通过 `portless` 启动，访问地址：
 
 ```text
-http://zendocs.localhost:1355
+http://zendocs.local:1355
 ```
 
 ## Docker 后台运行

@@ -62,7 +62,7 @@ Key files:
 - Removing `<DocsTitle>{page.title}</DocsTitle>` from `src/routes/$lang/$.tsx` fixed the duplicated file-name title on document pages.
 - Link styling is best kept in `src/styles/fumadocs-overrides.css` with targeted `.prose a` rules. The blue state seen after right-clicking/selecting link text was the browser text selection color, fixed with `.prose ::selection`.
 - `portless` can serve the app at:
-  - `http://zendocs.localhost:1355/`
+  - `http://zendocs.local:1355/`
 - During local validation, `bun run dev:app` served the app at:
   - `http://127.0.0.1:3140/`
 - Validation commands that passed:
@@ -75,7 +75,7 @@ Key files:
 - The orange underline seen in Fumadocs is for links, not ordinary inline code. Do not add it to every inline code element.
 - Trying to run `portless` inside the sandbox failed because it writes to `/Users/ben/.portless/proxy.log`; it needs elevated execution in this environment.
 - `portless` with default HTTPS tried to handle local certificate trust and was not smooth. The current setup intentionally uses HTTP with `PORTLESS_HTTPS=0`.
-- `portless` registered `zendocs.localhost` once under PID `26413`. Later attempts to start another copy reported the name was already registered. Check for stale/running processes before restarting.
+- `portless` registered `zendocs.local` once under PID `26413`. Later attempts to start another copy reported the name was already registered. Check for stale/running processes before restarting.
 - The project now has a git repository initialized, but most files were still untracked at the time of this handoff.
 - `bun run build` prints a Vite warning that Node.js `20.18.3` is below Vite's recommended `20.19+` or `22.12+`, but the build still succeeds.
 
@@ -83,10 +83,10 @@ Key files:
 
 1. Verify the visual placement of the bottom "最后更新于" text in the browser, especially near the bottom of long documents.
 2. If the dev server needs restarting, first check the existing portless route/process:
-   - `PORTLESS_PORT=1355 PORTLESS_HTTPS=0 ./node_modules/.bin/portless list`
+   - `PORTLESS_LAN=1 PORTLESS_PORT=1355 PORTLESS_HTTPS=0 ./node_modules/.bin/portless list`
    - `ps -p 26413 -o pid,command`
 3. Consider cleaning up the `package.json` scripts. Current scripts are:
-   - `dev`: `PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force`
+   - `dev`: `PORTLESS_LAN=1 PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force`
    - `dev:app`: `vite --host 127.0.0.1 --port ${PORT:-3000}`
    - `start`: same as `dev`
    

@@ -50,8 +50,9 @@ switch (command) {
     await run("docker", ["compose", "up", "-d", "--build", "--force-recreate"]);
     await run("portless", ["alias", "zendocs", env.ZENDOCS_PORT, "--force"], {
       env: {
-        PORTLESS_PORT: "1355",
         PORTLESS_HTTPS: "0",
+        PORTLESS_LAN: "1",
+        PORTLESS_PORT: "1355",
       },
     });
     break;
@@ -59,8 +60,9 @@ switch (command) {
   case "alias":
     await run("portless", ["alias", "zendocs", env.ZENDOCS_PORT, "--force"], {
       env: {
-        PORTLESS_PORT: "1355",
         PORTLESS_HTTPS: "0",
+        PORTLESS_LAN: "1",
+        PORTLESS_PORT: "1355",
       },
     });
     break;
@@ -69,8 +71,9 @@ switch (command) {
     await run("portless", ["alias", "--remove", "zendocs"], {
       allowFailure: true,
       env: {
-        PORTLESS_PORT: "1355",
         PORTLESS_HTTPS: "0",
+        PORTLESS_LAN: "1",
+        PORTLESS_PORT: "1355",
       },
     });
     await run("docker", ["compose", "down"]);
