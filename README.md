@@ -26,7 +26,7 @@ Zendocs 会读取本地目录里的 Markdown 文件，并把它们展示成一�
    - 然后确认 `editor.url` 配置为 `zed://file/{file}`。
 5. 如果我没有特别说明过滤规则，请保留项目里已有的默认过滤配置。
 6. 运行 bun run docker:up，让 Docker 在后台启动 Zendocs。
-7. 验证页面可以通过 http://zendocs.localhost:1355。
+7. 验证页面可以通过 http://zendocs.local:1355。
 ```
 
 ## 本地开发
@@ -77,7 +77,7 @@ bun run dev
 默认会通过 `portless` 启动，访问地址：
 
 ```text
-http://zendocs.localhost:1355
+http://zendocs.local:1355
 ```
 
 ## Docker 后台运行
@@ -95,7 +95,7 @@ bun run docker:up
 默认会同时接入 portless，访问地址：
 
 ```text
-http://zendocs.localhost:1355
+http://zendocs.local:1355
 ```
 
 也可以直接访问 Docker 暴露的端口：
@@ -116,7 +116,7 @@ ZENDOCS_PORT=8080 bun run docker:up
 bun run docker:down
 ```
 
-如果容器已经在运行，但 `zendocs.localhost:1355` 显示没有注册 app，可以单独重新注册 portless alias：
+如果容器已经在运行，但 `zendocs.local:1355` 显示没有注册 app，可以单独重新注册 portless alias：
 
 ```bash
 bun run docker:alias
