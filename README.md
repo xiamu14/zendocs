@@ -4,29 +4,120 @@ Zendocs 会读取本地目录里的 Markdown 文件，并把它们展示成一�
 
 它适合用来快速查看工作区、项目集合或个人笔记里的 `.md` 文件。
 
-## 快速开始 
+## 快速开始
 
-你可以把下面这段直接发给 AI，让它帮你配置并用 Docker 后台运行 Zendocs：
+Zendocs 推荐使用发布好的 Docker 镜像运行。使用者不需要下载源码，也不需要在本机安装 Bun 或项目依赖。
+
+你可以把下面这段直接发给 AI Agent，让它帮你一键安装并启动 Zendocs：
 
 ```text
-请帮我在当前 Zendocs 项目里完成配置，并用 Docker 后台运行。
+请帮我安装并用 Docker 后台启动 Zendocs。
 
-开始前，请先问我：readDirectory 应该设置成哪个本地目录？
+第一步必须先问我：config.ts 里的 readDirectory 应该设置成哪个本地目录？
 
-拿到我的回答后，请执行这些事情：
+如果我没有提供 readDirectory，或者提供的目录不存在，请停止，不要创建配置，也不要启动 Docker。
 
-1. 打开 config.ts。
-2. 把 readDirectory 改成我提供的目录。
-3. 根据我的说明，配置 filterFiles 和 filterDirectories。
-   - filterFiles 用来过滤不想展示的 Markdown 文件。
-   - filterDirectories 用来过滤不想扫描的目录。
-   - 两者都支持字符串、正则和 glob。
-4. 确认本机编辑器可用。
-   - 如果使用 Zed，先运行 `which zed`，确认能找到 `zed` 命令。
-   - 然后确认 `editor.url` 配置为 `zed://file/{file}`。
-5. 如果我没有特别说明过滤规则，请保留项目里已有的默认过滤配置。
-6. 运行 bun run docker:up，让 Docker 在后台启动 Zendocs。
-7. 验证页面可以通过 http://zendocs.local:1355。
+拿到 readDirectory 后，请执行这些事情：
+
+1. 检查本机是否安装 Docker，并确认 Docker 正在运行。
+2. 创建一个用于运行 Zendocs 的目录，例如 ~/zendocs。
+3. 在该目录创建 config.ts，把 readDirectory 设置成我提供的绝对路径。
+4. 如果我没有特别说明过滤规则，请使用下面这些默认过滤配置：
+
+   filterFiles:
+   - /^(readme(?:[._-].*)?|licen[cs]e|licence|changelog|contribut(?:ion|ing)|thanks)(?:[._-].*)?$/i
+
+   filterDirectories:
+   - ".cache"
+   - ".claude"
+   - ".codex"
+   - ".gradle"
+   - ".output"
+   - ".pnpm-store"
+   - ".tanstack"
+   - ".vite"
+   - ".vinxi"
+   - ".yarn"
+   - "DerivedData"
+   - "build"
+   - "coverage"
+   - "dist"
+   - "Library"
+   - "node_modules"
+   - "target"
+
+5. 在同一目录创建 docker-compose.yml。
+6. 运行 bun run docker:up，让脚本从 config.ts 读取 readDirectory 并注入 Docker Compose。
+7. 验证页面可以通过 http://localhost:1356 访问。
+8. 如果启动失败，请先检查 config.ts 的 readDirectory 是否存在并且是绝对路径。
+```
+
+同样的 prompt 也放在 `prompts/install-and-start.md`，方便复制到其他 Agent。
+
+最小运行目录通常只需要两个文件：
+
+```text
+zendocs/
+  config.ts
+  docker-compose.yml
+```
+
+`docker-compose.yml` 示例：
+
+```yaml
+services:
+  zendocs:
+    image: "${ZENDOCS_IMAGE:-zendocs:local}"
+    build:
+      context: .
+    container_name: zendocs
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${ZENDOCS_PORT:-1356}:3000"
+    volumes:
+      - "./config.ts:/app/config.ts:ro"
+      - "${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:ro"
+    restart: unless-stopped
+```
+
+`config.ts` 示例：
+
+```ts
+const config = {
+  readDirectory: '/Users/ben/Documents/workspace',
+  editor: {
+    command: 'open',
+    args: ['-a', 'Zed'],
+    url: 'zed://file/{file}',
+  },
+  filterFiles: [
+    /^(readme(?:[._-].*)?|licen[cs]e|licence|changelog|contribut(?:ion|ing)|thanks)(?:[._-].*)?$/i,
+  ],
+  filterDirectories: [
+    '.cache',
+    '.claude',
+    '.codex',
+    '.gradle',
+    '.output',
+    '.pnpm-store',
+    '.tanstack',
+    '.vite',
+    '.vinxi',
+    '.yarn',
+    'DerivedData',
+    'build',
+    'coverage',
+    'dist',
+    'Library',
+    'node_modules',
+    'target',
+  ],
+  maxFileSizeBytes: 1024 * 1024,
+}
+
+export default config
 ```
 
 ## 本地开发
@@ -82,9 +173,9 @@ http://zendocs.local:1355
 
 ## Docker 后台运行
 
-Docker 会读取 `config.ts` 里的 `readDirectory`。
+`bun run docker:up` 会读取 `config.ts` 里的 `readDirectory`，并把这个目录只读挂载进容器。不需要创建 `.env`。
 
-先确认 `config.ts` 里的目录是你想读取的本地目录，然后后台启动：
+启动：
 
 ```bash
 bun run docker:up
@@ -92,13 +183,7 @@ bun run docker:up
 
 如果修改过 `config.ts`，也用同一条命令重新启动。Docker 镜像会重新构建，确保读取的是最新的 `readDirectory`。
 
-默认会同时接入 portless，访问地址：
-
-```text
-http://zendocs.local:1355
-```
-
-也可以直接访问 Docker 暴露的端口：
+直接访问 Docker 暴露的端口：
 
 ```text
 http://localhost:1356
@@ -116,12 +201,17 @@ ZENDOCS_PORT=8080 bun run docker:up
 bun run docker:down
 ```
 
-如果容器已经在运行，但 `zendocs.local:1355` 显示没有注册 app，可以单独重新注册 portless alias：
+也可以通过 portless 访问：
+
+```text
+http://zendocs.local:1355
+```
+
+如果容器已经在运行，但 portless 没有注册 app，可以单独重新注册 alias：
 
 ```bash
 bun run docker:alias
 ```
-
 Docker 运行时，`Open` 按钮会通过浏览器打开 `config.ts` 里配置的编辑器 URL，例如：
 
 ```ts

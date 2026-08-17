@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/config.ts ./config.ts
+COPY --from=build /app/config.example.ts ./config.ts
 
 EXPOSE 3000
 
