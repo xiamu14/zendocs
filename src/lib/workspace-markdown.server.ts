@@ -816,6 +816,7 @@ function splitAssetReference(value: string) {
 
   return {
     pathname: match?.groups?.pathname ?? value,
+    search: match?.groups?.search ?? "",
     hash: match?.groups?.hash ?? "",
   };
 }
@@ -1043,8 +1044,23 @@ async function renderMarkdown(
   renderer.image = ({ href, title, text }) => {
     const src = workspaceAssetUrl(context, href, pageRelativePath);
     const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
+    let sizeAttributes = "";
 
-    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${titleAttribute}>`;
+    if (href && !href.startsWith("#") && !isExternalUrl(href)) {
+      const { search } = splitAssetReference(href);
+      const params = new URLSearchParams(search);
+      const width = Number(params.get("sw"));
+      const height = Number(params.get("sh"));
+
+      if (Number.isFinite(width) && width > 0) {
+        const dimensions = Number.isFinite(height) && height > 0
+          ? ` width="${width}" height="${height}"`
+          : "";
+        sizeAttributes = `${dimensions} style="width: ${width / 2}px; max-width: 100%; height: auto;"`;
+      }
+    }
+
+    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${titleAttribute}${sizeAttributes}>`;
   };
 
   renderer.link = ({ href, title, tokens }) => {
