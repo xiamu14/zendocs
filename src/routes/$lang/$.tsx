@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page";
+import { DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page";
+import { MarkdownBody } from "@/components/markdown-body";
 import { MermaidRenderer } from "@/components/mermaid-renderer";
 import { MarkdownPageActions } from "@/components/open-editor-button";
 import { getWorkspaceMarkdownPage } from "@/lib/workspace-markdown";
@@ -48,7 +49,7 @@ function WorkspaceMarkdownPage() {
         markdown={page.content}
         pagePath={page.path}
       />
-      <DocsBody dangerouslySetInnerHTML={{ __html: page.html }} />
+      <MarkdownBody key={page.html} html={page.html} />
       <MermaidRenderer version={`${page.path}:${page.lastUpdate}`} />
     </DocsPage>
   );

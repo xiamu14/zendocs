@@ -911,7 +911,11 @@ function withPreClass(html: string) {
 }
 
 function renderMermaidBlock(code: string) {
-  return `<div class="zd-mermaid not-prose" data-mermaid-source="${escapeHtml(code)}"><pre>${escapeHtml(code)}</pre></div>`;
+  return `<div class="relative not-prose">${renderCodeCopySlot(code)}<div class="zd-mermaid" data-mermaid-source="${escapeHtml(code)}"><pre>${escapeHtml(code)}</pre></div></div>`;
+}
+
+function renderCodeCopySlot(code: string, hasTitle = false) {
+  return `<span data-code-copy="${escapeHtml(code)}" class="absolute ${hasTitle ? "top-1" : "top-3"} right-2 z-2 backdrop-blur-lg rounded-lg text-fd-muted-foreground"></span>`;
 }
 
 async function renderCodeBlock(code: string, info?: string) {
@@ -935,10 +939,10 @@ async function renderCodeBlock(code: string, info?: string) {
   }
 
   const header = title
-    ? `<div class="flex text-fd-muted-foreground items-center gap-2 h-9.5 border-b px-4"><figcaption class="flex-1 truncate">${escapeHtml(title)}</figcaption></div>`
+    ? `<div class="flex text-fd-muted-foreground items-center gap-2 h-9.5 border-b pl-4 pr-12"><figcaption class="flex-1 truncate">${escapeHtml(title)}</figcaption></div>`
     : "";
 
-  return `<figure dir="ltr" tabindex="-1" class="my-4 bg-fd-card rounded-xl shiki relative border shadow-sm not-prose overflow-hidden text-sm">${header}<div role="region" tabindex="0" class="text-[0.8125rem] py-3.5 overflow-auto max-h-[600px] fd-scroll-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fd-ring">${withPreClass(highlighted)}</div></figure>`;
+  return `<figure dir="ltr" tabindex="-1" class="my-4 bg-fd-card rounded-xl shiki relative border shadow-sm not-prose overflow-hidden text-sm">${header}${renderCodeCopySlot(code, Boolean(title))}<div role="region" tabindex="0" style="--padding-right: ${title ? "1rem" : "calc(var(--spacing) * 10)"}" class="text-[0.8125rem] py-3.5 overflow-auto max-h-[600px] fd-scroll-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fd-ring">${withPreClass(highlighted)}</div></figure>`;
 }
 
 function collectCodeTokens(tokens: MarkedTokenLike[]) {

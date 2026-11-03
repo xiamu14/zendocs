@@ -6,6 +6,7 @@
     "dev": "PORTLESS_LAN=1 PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs bun run dev:app --force",
     "dev:app": "vite --host 127.0.0.1 --port ${PORT:-3140}",
     "build": "vite build",
+    "web:restart": "bun run build && docker cp ./dist/. zendocs:/app/dist/ && docker restart zendocs",
     "serve": "NODE_ENV=production bun scripts/serve.mjs",
     "start": "bun run serve",
     "docker:up": "bun scripts/docker.mjs up",

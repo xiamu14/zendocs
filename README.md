@@ -183,6 +183,14 @@ bun run docker:up
 
 如果修改过 `config.ts`，也用同一条命令重新启动。Docker 镜像会重新构建，确保读取的是最新的 `readDirectory`。
 
+只更新 Web 代码并重启现有容器，无需重建镜像：
+
+```bash
+bun run web:restart
+```
+
+该命令依次构建 Web、将 `dist` 复制到 `zendocs` 容器、重启服务；任一步失败即停止。重启期间服务会短暂中断。更新仅保存在当前容器，容器重建后会恢复镜像中的版本；依赖变更仍需运行 `bun run docker:up` 重建镜像。
+
 直接访问 Docker 暴露的端口：
 
 ```text
