@@ -47,7 +47,7 @@ Zendocs 推荐使用发布好的 Docker 镜像运行。使用者不需要下载�
    - "target"
 
 5. 在同一目录创建 docker-compose.yml。
-6. 运行 bun run docker:up，让脚本从 config.ts 读取 readDirectory 并注入 Docker Compose。
+6. 运行 bun run docker up，让脚本从 config.ts 读取 readDirectory 并注入 Docker Compose。
 7. 验证页面可以通过 http://localhost:3017 访问。
 8. 如果启动失败，请先检查 config.ts 的 readDirectory 是否存在并且是绝对路径。
 ```
@@ -165,22 +165,22 @@ const config = {
 bun run dev
 ```
 
-默认会通过 `portless` 启动，访问地址：
+开发服务默认监听本机 3017 端口：
 
 ```text
-http://zendocs.local:1355
+http://localhost:3017
 ```
 
 开发服务和 Docker 容器默认使用同一个宿主机端口 3017，请分开启动。
 
 ## Docker 后台运行
 
-`bun run docker:up` 会读取 `config.ts` 里的 `readDirectory`，并把这个目录只读挂载进容器。不需要创建 `.env`。
+`bun run docker up` 会读取 `config.ts` 里的 `readDirectory`，并把这个目录只读挂载进容器。不需要创建 `.env`。
 
 启动：
 
 ```bash
-bun run docker:up
+bun run docker up
 ```
 
 如果修改过 `config.ts`，也用同一条命令重新启动。Docker 镜像会重新构建，确保读取的是最新的 `readDirectory`。
@@ -188,10 +188,10 @@ bun run docker:up
 只更新 Web 代码并重启现有容器，无需重建镜像：
 
 ```bash
-bun run web:restart
+bun run docker reload
 ```
 
-该命令依次构建 Web、将 `dist` 复制到 `zendocs` 容器、重启服务；任一步失败即停止。重启期间服务会短暂中断。更新仅保存在当前容器，容器重建后会恢复镜像中的版本；依赖变更仍需运行 `bun run docker:up` 重建镜像。
+该命令依次构建 Web、将 `dist` 复制到 `zendocs` 容器、重启服务；任一步失败即停止。重启期间服务会短暂中断。更新仅保存在当前容器，容器重建后会恢复镜像中的版本；依赖变更仍需运行 `bun run docker up` 重建镜像。
 
 直接访问 Docker 暴露的端口：
 
@@ -202,13 +202,13 @@ http://localhost:3017
 如果要换端口：
 
 ```bash
-ZENDOCS_PORT=8080 bun run docker:up
+bun run docker up --port 8080
 ```
 
 停止：
 
 ```bash
-bun run docker:down
+bun run docker down
 ```
 
 也可以通过 portless 访问：
@@ -217,11 +217,7 @@ bun run docker:down
 http://zendocs.local:1355
 ```
 
-如果容器已经在运行，但 portless 没有注册 app，可以单独重新注册 alias：
-
-```bash
-bun run docker:alias
-```
+LAN 域名由工作区的 `portlan` 统一管理。容器启动后，在 `portlan` 目录运行 `bun run start`；如果更改了 `ZENDOCS_PORT`，同时更新其 `services.json`。
 Docker 运行时，`Open` 按钮会通过浏览器打开 `config.ts` 里配置的编辑器 URL，例如：
 
 ```ts

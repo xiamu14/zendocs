@@ -58,6 +58,6 @@ services:
     restart: unless-stopped
 ```
 
-6. 运行 `bun run docker:up`。不要创建 `.env`；脚本会从 `config.ts` 读取 `readDirectory` 并注入 Docker Compose。
+6. 运行 `bun run docker up`。不要创建 `.env`；脚本会从 `config.ts` 读取 `readDirectory` 并注入 Docker Compose。
 7. 验证页面可以通过 `http://localhost:3017` 访问。
 8. 如果启动失败，请先检查 `config.ts` 的 `readDirectory` 是否存在并且是绝对路径。

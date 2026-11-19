@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --frozen-lockfile
 
 COPY . .
-RUN bun run build
+RUN ./node_modules/.bin/vite build
 
 FROM oven/bun:1.3.2 AS runtime
 
@@ -28,4 +28,4 @@ COPY --from=build /app/config.example.ts ./config.ts
 
 EXPOSE 3000
 
-CMD ["bun", "run", "serve"]
+CMD ["bun", "scripts/serve.mjs"]

@@ -3,21 +3,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "PORTLESS_LAN=1 PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless zendocs --app-port 3017 bun run dev:app --force",
-    "dev:app": "vite --host 127.0.0.1 --port ${PORT:-3017} --strictPort",
-    "build": "vite build",
-    "web:restart": "bun run build && docker cp ./dist/. zendocs:/app/dist/ && docker restart zendocs",
-    "serve": "NODE_ENV=production bun scripts/serve.mjs",
-    "start": "bun run serve",
-    "docker:up": "bun scripts/docker.mjs up",
-    "docker:alias": "bun scripts/docker.mjs alias",
-    "docker:down": "bun scripts/docker.mjs down",
-    "docker:logs": "bun scripts/docker.mjs logs",
-    "docker:config": "bun scripts/docker.mjs config"
-  },
-  "portless": {
-    "name": "zendocs",
-    "script": "dev:app"
+    "dev": "bun scripts/dev.ts",
+    "docker": "bun scripts/docker.ts"
   },
   "dependencies": {
     "@tanstack/react-router": "latest",
@@ -34,11 +21,12 @@
     "vite": "^7.2.7"
   },
   "devDependencies": {
+    "@clack/prompts": "^1.9.0",
     "@types/bun": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "portless": "^0.13.0",
-    "typescript": "latest"
+    "typescript": "latest",
+    "zx": "^8.8.5"
   }
 }

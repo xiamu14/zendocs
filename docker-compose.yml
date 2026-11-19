@@ -1,3 +1,5 @@
+name: zendocs
+
 services:
   zendocs:
     image: "${ZENDOCS_IMAGE:-zendocs:local}"
