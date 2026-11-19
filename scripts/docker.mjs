@@ -26,7 +26,7 @@ try {
 const env = {
   ...process.env,
   ZENDOCS_IMAGE: process.env.ZENDOCS_IMAGE ?? "zendocs:local",
-  ZENDOCS_PORT: process.env.ZENDOCS_PORT ?? "1356",
+  ZENDOCS_PORT: process.env.ZENDOCS_PORT ?? "3017",
   ZENDOCS_READ_DIRECTORY: resolvedReadDirectory,
 };
 

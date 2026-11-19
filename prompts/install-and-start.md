@@ -51,7 +51,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     ports:
-      - "${ZENDOCS_PORT:-1356}:3000"
+      - "${ZENDOCS_PORT:-3017}:3000"
     volumes:
       - "./config.ts:/app/config.ts:ro"
       - "${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:ro"
@@ -59,5 +59,5 @@ services:
 ```
 
 6. 运行 `bun run docker:up`。不要创建 `.env`；脚本会从 `config.ts` 读取 `readDirectory` 并注入 Docker Compose。
-7. 验证页面可以通过 `http://localhost:1356` 访问。
+7. 验证页面可以通过 `http://localhost:3017` 访问。
 8. 如果启动失败，请先检查 `config.ts` 的 `readDirectory` 是否存在并且是绝对路径。

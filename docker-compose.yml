@@ -8,7 +8,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     ports:
-      - "${ZENDOCS_PORT:-1356}:3000"
+      - "${ZENDOCS_PORT:-3017}:3000"
     volumes:
       - "./config.ts:/app/config.ts:ro"
       - "${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:ro"

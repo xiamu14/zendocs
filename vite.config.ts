@@ -13,7 +13,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 3017,
+    strictPort: true,
+    allowedHosts: ['zendocs.local'],
   },
   plugins: [tanstackStart(), viteReact()],
 })

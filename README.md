@@ -48,7 +48,7 @@ Zendocs 推荐使用发布好的 Docker 镜像运行。使用者不需要下载�
 
 5. 在同一目录创建 docker-compose.yml。
 6. 运行 bun run docker:up，让脚本从 config.ts 读取 readDirectory 并注入 Docker Compose。
-7. 验证页面可以通过 http://localhost:1356 访问。
+7. 验证页面可以通过 http://localhost:3017 访问。
 8. 如果启动失败，请先检查 config.ts 的 readDirectory 是否存在并且是绝对路径。
 ```
 
@@ -75,7 +75,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     ports:
-      - "${ZENDOCS_PORT:-1356}:3000"
+      - "${ZENDOCS_PORT:-3017}:3000"
     volumes:
       - "./config.ts:/app/config.ts:ro"
       - "${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:${ZENDOCS_READ_DIRECTORY:?Set ZENDOCS_READ_DIRECTORY to the same path used by config.ts readDirectory}:ro"
@@ -171,6 +171,8 @@ bun run dev
 http://zendocs.local:1355
 ```
 
+开发服务和 Docker 容器默认使用同一个宿主机端口 3017，请分开启动。
+
 ## Docker 后台运行
 
 `bun run docker:up` 会读取 `config.ts` 里的 `readDirectory`，并把这个目录只读挂载进容器。不需要创建 `.env`。
@@ -194,7 +196,7 @@ bun run web:restart
 直接访问 Docker 暴露的端口：
 
 ```text
-http://localhost:1356
+http://localhost:3017
 ```
 
 如果要换端口：
