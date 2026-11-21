@@ -194,6 +194,11 @@
   transform: translateY(0.125rem);
 }
 
+#nd-page,
+#nd-page > .prose {
+  min-width: 0;
+}
+
 #nd-toc {
   --color-fd-primary: oklch(61% 0.17 68);
 }

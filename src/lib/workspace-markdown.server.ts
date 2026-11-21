@@ -1019,6 +1019,11 @@ async function renderMarkdown(
 
   const slugger = new GithubSlugger();
   const renderer = new marked.Renderer();
+  const defaultTableRenderer = renderer.table.bind(renderer);
+
+  renderer.table = (token) => {
+    return `<div class="relative overflow-auto prose-no-margin my-6">${defaultTableRenderer(token)}</div>`;
+  };
 
   renderer.code = (token) => {
     const { language } = parseCodeMeta(token.lang);
